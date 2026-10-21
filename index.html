@@ -634,6 +634,7 @@ async function googlePlaces(lat, lon){
 function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
+  state.city = rec.city || "";
   setZipNote("");
 }
 async function lookupZip(zip){
@@ -674,6 +675,102 @@ const CATEGORIES = {
   pizza:["dominos","pizzahut","littlecaesars"],
 };
 const CAT_LABELS = {burgers:"Burgers", chicken:"Chicken", mexican:"Mexican", sandwiches:"Sandwiches & Subs", asian:"Asian", pizza:"Pizza", sweets:"Sweets & Desserts"};
+
+/* ================= LOCAL SPOTS (hand-added places) =================
+   One line per place:
+     {name:"Burger Hut", zips:["93301"], city:"Bakersfield", addr:"1112 19th St", cat:"burgers"}
+   - zips and/or city decide where the spot can roll (city matches the looked-up city name).
+   - cat picks the combo template below: burgers | tacos | chicken | pizza | sandwiches | diner | bbq
+   - Optional: color:"#..." for its banner, items:[...] to give the spot its own real menu.
+   Prices/calories for template combos are estimates, like everything else here. */
+const LOCAL_SPOTS = [
+];
+const GENERIC_MENUS = {
+  burgers:{cats:["burgers"], items:[
+    {n:"Single Burger", p:6.99, c:470, t:["main"]},
+    {n:"House Cheeseburger", p:8.49, c:650, t:["main"]},
+    {n:"Double Smash Burger", p:10.99, c:890, t:["main"]},
+    {n:"Bacon Burger", p:9.99, c:780, t:["main"]},
+    {n:"Crinkle Fries", p:3.49, c:380, t:["side"]},
+    {n:"Onion Rings", p:4.29, c:440, t:["side"]},
+    {n:"House Salad", p:5.49, c:220, t:["side","veg"]},
+    {n:"Vanilla Shake", p:5.29, c:590, t:["dessert","drink","sweet"]},
+    {n:"Soda", p:2.29, c:210, t:["drink","sweet"]}]},
+  tacos:{cats:["mexican"], items:[
+    {n:"2 Street Tacos", p:5.99, c:360, t:["main"]},
+    {n:"3 Street Tacos", p:8.99, c:540, t:["main"]},
+    {n:"Burrito", p:10.49, c:820, t:["main"]},
+    {n:"Quesadilla", p:8.49, c:690, t:["main","cheesy"]},
+    {n:"Elote (street corn)", p:4.99, c:290, t:["side"]},
+    {n:"Chips & Guac", p:6.49, c:460, t:["side"]},
+    {n:"Agua Fresca", p:3.49, c:160, t:["drink","sweet"]},
+    {n:"Mexican Coke (bottle)", p:3.29, c:240, t:["drink","sweet"]},
+    {n:"Churros", p:4.49, c:380, t:["dessert","sweet"]}]},
+  chicken:{cats:["chicken"], items:[
+    {n:"Chicken Sandwich", p:8.99, c:560, t:["main"]},
+    {n:"Fried Chicken Plate (3 pc)", p:11.49, c:940, t:["main"]},
+    {n:"Wings (8 pc)", p:10.99, c:720, t:["main"]},
+    {n:"Mac & Cheese", p:4.49, c:310, t:["side","cheesy"]},
+    {n:"Coleslaw", p:2.99, c:150, t:["side","veg"]},
+    {n:"Cornbread", p:2.49, c:190, t:["side"]},
+    {n:"Sweet Tea", p:2.49, c:160, t:["drink","sweet"]},
+    {n:"Lemonade", p:2.99, c:170, t:["drink","sweet"]}]},
+  pizza:{cats:["pizza"], items:[
+    {n:"Cheese Slice", p:4.49, c:410, t:["main"]},
+    {n:"Personal Pizza", p:6.99, c:640, t:["main"]},
+    {n:"Medium Cheese Pizza", p:10.99, c:1760, t:["main"]},
+    {n:"Medium Pepperoni Pizza", p:11.99, c:1900, t:["main"]},
+    {n:"Garlic Knots", p:5.49, c:620, t:["side"]},
+    {n:"House Salad", p:5.99, c:240, t:["side","veg"]},
+    {n:"Cannoli", p:4.99, c:340, t:["dessert","sweet"]},
+    {n:"Soda", p:2.29, c:210, t:["drink","sweet"]}]},
+  sandwiches:{cats:["sandwiches"], items:[
+    {n:"Turkey Club Sub", p:9.99, c:580, t:["main"]},
+    {n:"Italian Sub", p:10.49, c:720, t:["main"]},
+    {n:"Meatball Sub", p:9.49, c:690, t:["main","cheesy"]},
+    {n:"Chips", p:1.99, c:220, t:["side","value"]},
+    {n:"Pickle Spear", p:1.29, c:10, t:["side","veg","value"]},
+    {n:"Cookie", p:2.49, c:320, t:["dessert","sweet"]},
+    {n:"Soda", p:2.29, c:210, t:["drink","sweet"]},
+    {n:"Iced Tea (unsweet)", p:2.29, c:0, t:["drink"]}]},
+  diner:{cats:["burgers"], items:[
+    {n:"Pancakes (short stack)", p:7.49, c:580, t:["main","breakfast"]},
+    {n:"Breakfast Plate (eggs, bacon, toast)", p:10.99, c:780, t:["main","breakfast"]},
+    {n:"Club Sandwich", p:9.99, c:640, t:["main"]},
+    {n:"Patty Melt", p:9.49, c:720, t:["main","cheesy"]},
+    {n:"Home Fries", p:3.99, c:340, t:["side"]},
+    {n:"Buttered Toast", p:1.99, c:170, t:["side","breakfast","value"]},
+    {n:"Coffee", p:2.29, c:5, t:["drink"]},
+    {n:"Orange Juice", p:3.49, c:170, t:["drink","sweet"]},
+    {n:"Pie Slice", p:4.99, c:420, t:["dessert","sweet"]}]},
+  bbq:{cats:[], items:[
+    {n:"Pulled Pork Sandwich", p:9.49, c:590, t:["main"]},
+    {n:"Pulled Pork Plate", p:12.99, c:860, t:["main"]},
+    {n:"Brisket Plate", p:15.99, c:920, t:["main"]},
+    {n:"Baked Beans", p:3.99, c:260, t:["side"]},
+    {n:"Mac & Cheese", p:4.49, c:310, t:["side","cheesy"]},
+    {n:"Cornbread", p:2.49, c:190, t:["side"]},
+    {n:"Sweet Tea", p:2.49, c:160, t:["drink","sweet"]},
+    {n:"Peach Cobbler", p:5.49, c:390, t:["dessert","sweet"]}]},
+};
+let LOCAL_CHAINS = {};
+let LOCAL_BY_ZIP = {};
+let LOCAL_BY_CITY = {};
+function buildLocalChains(spots){
+  const chains={}, byZip={}, byCity={};
+  (spots||[]).forEach((s,idx)=>{
+    const tpl=GENERIC_MENUS[s.cat]; if(!tpl) return;
+    const key="local_"+idx;
+    chains[key]={ name:s.name, color:s.color||"#8a5a2b", local:true, addr:s.addr||"", cats:tpl.cats,
+      items:(s.items&&s.items.length?s.items:tpl.items) };
+    (s.zips||[]).forEach(z=>{ (byZip[z]=byZip[z]||[]).push(key); });
+    if(s.city) (byCity[s.city.toLowerCase()]=byCity[s.city.toLowerCase()]||[]).push(key);
+  });
+  return {chains, byZip, byCity};
+}
+function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.chains; LOCAL_BY_ZIP=r.byZip; LOCAL_BY_CITY=r.byCity; }
+setLocalSpots(LOCAL_SPOTS);
+function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false } };
 
@@ -688,7 +785,7 @@ function fitBudget(chainKey, items, budget){
   items=[...items];
   let guard=0;
   while(price(items)>budget && guard++<12){
-    const pool=CHAINS[chainKey].items;
+    const pool=chainObj(chainKey).items;
     const sorted=[...items].sort((a,b)=>b.p-a.p);
     const victim=sorted[0];
     const vcat=victim.t.includes("main")?"main":victim.t.includes("side")?"side":victim.t.includes("drink")?"drink":"dessert";
@@ -712,15 +809,15 @@ function fitCalories(chainKey, picks){
     if(extra){ picks.splice(picks.indexOf(extra),1); continue; }
     const main=picks.find(i=>i.t.includes("main"));
     if(main){
-      const lighter=CHAINS[chainKey].items.filter(i=>i.t.includes("main")).sort((a,b)=>a.c-b.c)[0];
+      const lighter=chainObj(chainKey).items.filter(i=>i.t.includes("main")).sort((a,b)=>a.c-b.c)[0];
       if(lighter && lighter.n!==main.n){ picks[picks.indexOf(main)]={...lighter}; continue; }
     }
     break;
   }
   guard=0;
   while(cals(picks)<mn && guard++<10){
-    let extra=CHAINS[chainKey].items.filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert"))).sort((a,b)=>b.c-a.c)[0];
-    if(!extra) extra=CHAINS[chainKey].items.filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main")).sort((a,b)=>b.c-a.c)[0];
+    let extra=chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert"))).sort((a,b)=>b.c-a.c)[0];
+    if(!extra) extra=chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main")).sort((a,b)=>b.c-a.c)[0];
     if(!extra || price(picks)+extra.p>effCap()) break;
     picks.push({...extra});
   }
@@ -782,10 +879,14 @@ function availableChains(){
   if(state.liveKeys && state.liveKeys.length) base=[...state.liveKeys];
   else if(state.zip && ZIP_CHAINS[state.zip]) base=[...ZIP_CHAINS[state.zip]];
   else base=[...CHAIN_KEYS];
+  if(state.zip){
+    const lk=[...(LOCAL_BY_ZIP[state.zip]||[]), ...((state.city&&LOCAL_BY_CITY[state.city.toLowerCase()])||[])];
+    lk.forEach(k=>{ if(!base.includes(k)) base.push(k); });
+  }
   const cats=state.filters.cats.filter(c=>CATEGORIES[c]);
   if(cats.length){
     const allowed=new Set(); cats.forEach(c=>CATEGORIES[c].forEach(k=>allowed.add(k)));
-    const f=base.filter(k=>allowed.has(k));
+    const f=base.filter(k=> allowed.has(k) || (LOCAL_CHAINS[k] && LOCAL_CHAINS[k].cats.some(c=>cats.includes(c))));
     if(f.length) return f;
   }
   return base;
@@ -795,7 +896,7 @@ function availableChains(){
 let rollDepth=0;
 function roll(){
   const chainKey=rand(availableChains());
-  const chain=CHAINS[chainKey];
+  const chain=chainObj(chainKey);
   const combo=buildMeal(chainKey, chain);
   const key=chainKey+"|"+combo.items.map(i=>(i.qty?i.qty+"x":"")+i.n).join("+");
   if(key===state.lastKey && rollDepth<3){ rollDepth++; return roll(); }
@@ -806,10 +907,13 @@ function roll(){
 }
 
 function render(chain, combo, chainKey){
-  $("rChain").textContent=chain.name;
+  $("rChain").textContent=chain.name + (chain.local ? " · local pick" : "");
   $("rChain").style.background=chain.color;
   const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
-  if(loc){
+  if(chain.local && chain.addr){
+    $("rLoc").textContent = "Find it: " + chain.addr;
+    $("rLoc").classList.add("show");
+  } else if(loc){
     $("rLoc").textContent = "Nearest: " + (loc.addr ? loc.addr : loc.name) + " · " + (loc.dist<0.1 ? "right here" : loc.dist.toFixed(1)+" mi away");
     $("rLoc").classList.add("show");
   } else {
@@ -860,7 +964,7 @@ $("zip").addEventListener("input",e=>{
     setZipNote("Finding fast food near "+z+"…");
     zipTimer=setTimeout(()=>lookupZip(z), 500);
   } else {
-    state.zip=""; state.liveKeys=null; state.nearest=null;
+    state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
     setZipNote("Type any US ZIP — the app finds the fast food near it. No ZIP = all "+CHAIN_KEYS.length+" chains.");
   }
 });
