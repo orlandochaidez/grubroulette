@@ -4669,6 +4669,7 @@ function buildMeal(ck, chain){
   let picks=[main]; if(side) picks.push(side); picks.push(drink);
   const cap=effCap(); if(cap!==Infinity) picks=fitBudget(ck,picks,cap);
   picks=fitCalories(ck,picks);
+  if(!picks.some(i=>i.t.includes("drink"))) picks.push({...WATER}); // every combo ends with a drink — water cup if nothing else survived
   return {items:picks};
 }
 function sweetPool(chain){
@@ -4679,6 +4680,7 @@ function buildSweet(ck, chain){
   if(!pool.length) pool=shuffle(chain.items.filter(i=>i.t.includes("sweet")));
   let picks=pool.slice(0, Math.random()<0.5?2:3).map(i=>({...i}));
   const cap=effCap(); if(cap!==Infinity) picks=fitBudget(ck,picks,cap);
+  if(!picks.some(i=>i.t.includes("drink"))) picks.push({...WATER}); // sweet runs get a drink too
   return {items:picks};
 }
 function buildCatering(ck, chain){
