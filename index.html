@@ -109,7 +109,7 @@
       <div class="logo">GRUB<span>ROULETTE</span></div>
       <div class="topspace"></div>
     </div>
-    <div style="text-align:center;"><span class="demo-pill">v5 · live any-ZIP lookup · prices &amp; calories are estimates</span></div>
+    <div style="text-align:center;"><span class="demo-pill">v6 · live any-ZIP lookup · prices &amp; calories are estimates</span></div>
   </header>
 
   <div class="panel">
@@ -140,7 +140,7 @@
   <div id="history"></div>
 
   <footer>
-    v5 — live ZIP lookup via OpenStreetMap (free, no key). Combos are generated for fun from estimated menu data.<br>
+    v6 — live ZIP lookup via Google Places (OpenStreetMap backup). Combos are generated for fun from estimated menu data.<br>
     Prices &amp; calories are rough estimates and vary by location. Water cups are free at most places if you ask nicely.<br>
     <span class="clearlink" id="clearHist">clear history</span>
   </footer>
@@ -585,18 +585,43 @@ async function overpassPlaces(lat, lon){
   }
   throw lastErr || new Error("overpass failed");
 }
+const GOOGLE_WORKER = "https://grub-places.orlandochaidez.workers.dev";
+function placesFromGoogle(places, qlat, qlon){
+  const keys=new Set(), nearest={};
+  let total=0;
+  for (const p of (places||[])){
+    if(!p.name) continue;
+    total++;
+    const k = chainKeyFromBrand(null, p.name);
+    if(!k || !CHAINS[k]) continue;
+    keys.add(k);
+    if(p.lat==null || p.lon==null) continue;
+    const d = distMi(qlat, qlon, p.lat, p.lon);
+    const addr = p.address ? (p.address.split(",")[0].trim() || null) : null;
+    const cur = nearest[k];
+    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10};
+  }
+  return {keys:[...keys], total, nearest};
+}
+async function googlePlaces(lat, lon){
+  const r = await fetch(GOOGLE_WORKER+"/nearby?lat="+lat+"&lon="+lon);
+  if(!r.ok) throw new Error("worker "+r.status);
+  const data = await r.json();
+  if(!data.places) throw new Error("bad worker response");
+  return placesFromGoogle(data.places, lat, lon);
+}
 function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
   const names = rec.keys.map(k=>CHAINS[k].name);
-  const tot = rec.total ? " Found "+rec.total+" fast food spots nearby in total." : "";
-  if (rec.keys.length>=2) setZipNote("Near "+zip+(rec.city?" ("+rec.city+")":"")+": "+names.join(", ")+"."+tot+" Live data, cached.");
+  const tot = rec.total ? (rec.src==="google" ? " Checked the "+rec.total+" closest spots." : " Found "+rec.total+" fast food spots nearby in total.") : "";
+  if (rec.keys.length>=2) setZipNote("Near "+zip+(rec.city?" ("+rec.city+")":"")+": "+names.join(", ")+"."+tot+(rec.src==="google" ? " Google data, cached." : " Live data, cached."));
   else if (rec.keys.length===1) setZipNote("Near "+zip+": only "+names[0]+" from our menu list found nearby — rolls stick to it. Clear the ZIP for all chains.");
-  else setZipNote("Near "+zip+": no chains from our menu list in the open data nearby — showing all chains.");
+  else setZipNote("Near "+zip+": no chains from our menu list found nearby — showing all chains.");
 }
 async function lookupZip(zip){
   try{
-    const c = JSON.parse(localStorage.getItem("gr_zipcache2")||"{}");
+    const c = JSON.parse(localStorage.getItem("gr_zipcache3")||"{}");
     if (c[zip] && Date.now()-c[zip].t < 7*24*3600*1000){ applyLive(zip, c[zip]); return; }
   }catch(e){}
   setZipNote("Finding fast food near "+zip+"…");
@@ -604,9 +629,12 @@ async function lookupZip(zip){
     const g = await fetch("https://nominatim.openstreetmap.org/search?postalcode="+zip+"&country=US&format=json&limit=1").then(r=>r.json());
     if(!g.length) throw new Error("zip not found");
     const city = (g[0].display_name||"").split(",")[1] ? (g[0].display_name||"").split(",")[1].trim() : "";
-    const res = await overpassPlaces(+g[0].lat, +g[0].lon);
-    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city};
-    try{ const c=JSON.parse(localStorage.getItem("gr_zipcache2")||"{}"); c[zip]=rec; localStorage.setItem("gr_zipcache2",JSON.stringify(c)); }catch(e){}
+    const lat = +g[0].lat, lon = +g[0].lon;
+    let res, src = "google";
+    try{ res = await googlePlaces(lat, lon); }
+    catch(e){ src = "osm"; res = await overpassPlaces(lat, lon); }
+    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city, src};
+    try{ const c=JSON.parse(localStorage.getItem("gr_zipcache3")||"{}"); c[zip]=rec; localStorage.setItem("gr_zipcache3",JSON.stringify(c)); }catch(e){}
     applyLive(zip, rec);
   }catch(e){
     state.liveKeys = null; state.nearest = null;
