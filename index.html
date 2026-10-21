@@ -205,7 +205,7 @@
   </div>
 
   <h4>Special</h4>
-  <div class="tglrow"><span>Ballin' on a Budget<small>most calories per dollar</small></span><button class="tgl" id="tglBallin">OFF</button></div>
+  <div class="tglrow"><span>Ballin' on a Budget<small>only 120+ calories per $</small></span><button class="tgl" id="tglBallin">OFF</button></div>
   <div class="tglrow"><span>Under $10, for sure<small>hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
   <div class="tglrow"><span>Sweet Tooth<small>desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
   <div class="tglrow"><span>Catering<small>feed a crew: bulk order</small></span><button class="tgl" id="tglCatering">OFF</button></div>
@@ -5413,6 +5413,8 @@ const state = { zip:"", liveKeys:null, nearest:null, lastKey:null,
 
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
 const cals  = items => items.reduce((s,i)=>s+i.c*(i.qty||1),0);
+const BALLIN_MIN=120; // Ballin' on a Budget floor: nothing under 120 cal per $ (Orlando, 2026-10-21)
+function valOK(i){ return i.p!=null && (i.p===0 || i.c/i.p>=BALLIN_MIN); }
 function cat(items,c){ return items.filter(i=>i.t.includes(c)); }
 function effCap(){ let cap = state.filters.maxPrice>0 ? state.filters.maxPrice : Infinity; if(state.filters.under10) cap = Math.min(cap,10); return cap; }
 function calBounds(){ return {any:[0,Infinity], light:[0,600], regular:[600,1100], feast:[1100,Infinity]}[state.filters.cal]; }
@@ -5427,7 +5429,7 @@ function fitBudget(chainKey, items, budget){
     const sorted=[...items].sort((a,b)=>b.p-a.p);
     const victim=sorted[0];
     const vcat=victim.t.includes("main")?"main":victim.t.includes("side")?"side":victim.t.includes("drink")?"drink":"dessert";
-    const alts=pool.filter(i=>i!==victim && i.t.includes(vcat) && i.p<victim.p && !items.some(p=>p.n===i.n)).sort((a,b)=>b.c-a.c);
+    const alts=pool.filter(i=>i!==victim && i.t.includes(vcat) && i.p<victim.p && !items.some(p=>p.n===i.n) && (!state.filters.ballin || valOK(i))).sort((a,b)=>b.c-a.c);
     if(alts.length){ items[items.indexOf(victim)]={...alts[0]}; continue; }
     const mainCount=items.filter(i=>i.t.includes("main")).length;
     const droppable=sorted.filter(i=>!(i.t.includes("main")&&mainCount<=1));
@@ -5440,6 +5442,7 @@ function fitBudget(chainKey, items, budget){
 
 /* ---- calorie fitting: trim or stack until inside the chosen range ---- */
 function fitCalories(chainKey, picks){
+  const _elig = a => state.filters.ballin ? a.filter(valOK) : a; // Ballin' floor applies to swaps/extras too
   const [mn,mx]=calBounds();
   let guard=0;
   while(cals(picks)>mx && guard++<10){
@@ -5447,15 +5450,15 @@ function fitCalories(chainKey, picks){
     if(extra){ picks.splice(picks.indexOf(extra),1); continue; }
     const main=picks.find(i=>i.t.includes("main"));
     if(main){
-      const lighter=chainObj(chainKey).items.filter(i=>i.t.includes("main")).sort((a,b)=>a.c-b.c)[0];
+      const lighter=_elig(chainObj(chainKey).items.filter(i=>i.t.includes("main"))).sort((a,b)=>a.c-b.c)[0];
       if(lighter && lighter.n!==main.n){ picks[picks.indexOf(main)]={...lighter}; continue; }
     }
     break;
   }
   guard=0;
   while(cals(picks)<mn && guard++<10){
-    let extra=chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert"))).sort((a,b)=>b.c-a.c)[0];
-    if(!extra) extra=chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main")).sort((a,b)=>b.c-a.c)[0];
+    let extra=_elig(chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert")))).sort((a,b)=>b.c-a.c)[0];
+    if(!extra) extra=_elig(chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main"))).sort((a,b)=>b.c-a.c)[0];
     if(!extra) break; const _pt=price(picks); if(_pt!==null && extra.p!=null && _pt+extra.p>effCap()) break;
     picks.push({...extra});
   }
@@ -5477,9 +5480,10 @@ function buildMeal(ck, chain){
   const items=chain.items;
   let main, side=null, drink;
   if(F.ballin){
-    main={...bestValue(cat(items,"main"))};
-    const sp=cat(items,"side"); if(sp.length) side={...bestValue(sp)};
-    const dp=cat(items,"drink"); drink = dp.length && Math.random()<0.5 ? {...bestValue(dp)} : {...WATER};
+    const bm=cat(items,"main").filter(valOK);
+    main={...bestValue(bm.length?bm:cat(items,"main"))}; // fallback only if nothing anywhere qualifies
+    const sp=cat(items,"side").filter(valOK); if(sp.length) side={...bestValue(sp)};
+    const dp=cat(items,"drink").filter(valOK); drink = dp.length && Math.random()<0.5 ? {...bestValue(dp)} : {...WATER};
   } else {
     main={...rand(cat(items,"main"))};
     const sp=cat(items,"side"); if(sp.length && Math.random()<0.85) side={...rand(sp)};
@@ -5535,6 +5539,10 @@ function availableChains(){
   if(state.filters.under10 || state.filters.maxPrice || state.filters.ballin){
     const priced=base.filter(k=>{ const co=chainObj(k); return co && !co.items.some(i=>i.p==null); });
     if(priced.length) base=priced; // can't promise a budget for a menu with unpublished prices
+  }
+  if(state.filters.ballin){
+    const eligB=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(valOK); });
+    if(eligB.length) base=eligB; // no qualifying main, no Ballin' roll at that spot
   }
   const cats=state.filters.cats.filter(c=>CATEGORIES[c]);
   if(cats.length){
