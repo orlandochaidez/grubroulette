@@ -952,7 +952,216 @@ const LOCAL_SPOTS = [
   ],
   "city": "Bakersfield",
   "addr": "1800 20th St",
-  "cat": "burgers"
+  "cat": "burgers",
+  "items": [
+   {
+    "n": "Happy Jack's Special",
+    "p": null,
+    "c": 850,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "n": "Ortega Bacon Cheeseburger",
+    "p": null,
+    "c": 780,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "n": "Ortega Cheeseburger",
+    "p": null,
+    "c": 700,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "n": "Bacon Cheeseburger",
+    "p": null,
+    "c": 750,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "n": "Jalapeño Cheeseburger",
+    "p": null,
+    "c": 720,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "n": "Deluxe Cheeseburger",
+    "p": null,
+    "c": 800,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "n": "Cheeseburger",
+    "p": null,
+    "c": 650,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "n": "Hamburger",
+    "p": null,
+    "c": 550,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "n": "Chili Size",
+    "p": null,
+    "c": 800,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "n": "Chili Verde Omelette",
+    "p": null,
+    "c": 700,
+    "t": [
+     "main",
+     "breakfast"
+    ]
+   },
+   {
+    "n": "Grilled Cheese",
+    "p": null,
+    "c": 450,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "n": "Jack's Potatoes",
+    "p": null,
+    "c": 400,
+    "t": [
+     "side"
+    ]
+   },
+   {
+    "n": "Chili Beans",
+    "p": null,
+    "c": 300,
+    "t": [
+     "side"
+    ]
+   },
+   {
+    "n": "Hash Browns",
+    "p": null,
+    "c": 250,
+    "t": [
+     "side"
+    ]
+   },
+   {
+    "n": "Rudy Pie",
+    "p": null,
+    "c": 550,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Peanut Butter Pie",
+    "p": null,
+    "c": 520,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Banana Cream Pie",
+    "p": null,
+    "c": 450,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Chocolate Cream Pie",
+    "p": null,
+    "c": 480,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Coconut Cream Pie",
+    "p": null,
+    "c": 470,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Apple Pie",
+    "p": null,
+    "c": 420,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Cherry Pie",
+    "p": null,
+    "c": 430,
+    "t": [
+     "dessert",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Coffee",
+    "p": null,
+    "c": 5,
+    "t": [
+     "drink"
+    ]
+   },
+   {
+    "n": "Milkshake",
+    "p": null,
+    "c": 550,
+    "t": [
+     "drink",
+     "sweet"
+    ]
+   },
+   {
+    "n": "Soft Drink",
+    "p": null,
+    "c": 150,
+    "t": [
+     "drink"
+    ]
+   }
+  ]
  },
  {
   "name": "John's Burgers",
@@ -5196,7 +5405,7 @@ function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false } };
 
-const price = items => items.reduce((s,i)=>s+i.p*(i.qty||1),0);
+const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
 const cals  = items => items.reduce((s,i)=>s+i.c*(i.qty||1),0);
 function cat(items,c){ return items.filter(i=>i.t.includes(c)); }
 function effCap(){ let cap = state.filters.maxPrice>0 ? state.filters.maxPrice : Infinity; if(state.filters.under10) cap = Math.min(cap,10); return cap; }
@@ -5204,6 +5413,7 @@ function calBounds(){ return {any:[0,Infinity], light:[0,600], regular:[600,1100
 
 /* ---- budget fitting: swap/downgrade until under budget (never drops the only main) ---- */
 function fitBudget(chainKey, items, budget){
+  if(items.some(i=>i.p==null)) return items; // unpublished prices: nothing to fit against
   items=[...items];
   let guard=0;
   while(price(items)>budget && guard++<12){
@@ -5240,14 +5450,14 @@ function fitCalories(chainKey, picks){
   while(cals(picks)<mn && guard++<10){
     let extra=chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert"))).sort((a,b)=>b.c-a.c)[0];
     if(!extra) extra=chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main")).sort((a,b)=>b.c-a.c)[0];
-    if(!extra || price(picks)+extra.p>effCap()) break;
+    if(!extra) break; const _pt=price(picks); if(_pt!==null && extra.p!=null && _pt+extra.p>effCap()) break;
     picks.push({...extra});
   }
   return picks;
 }
 
 /* ---- builders: every roll is a full meal (main + side + drink) unless a special filter says otherwise ---- */
-function bestValue(pool){ return [...pool].sort((a,b)=>(b.c/Math.max(b.p,.01))-(a.c/Math.max(a.p,.01)))[0]; }
+function bestValue(pool){ const val=i=> i.p==null ? 0 : i.c/Math.max(i.p,.01); return [...pool].sort((a,b)=>val(b)-val(a))[0]; }
 function pickDrink(chain){
   const d=cat(chain.items,"drink");
   if(!d.length) return {...WATER};
@@ -5316,6 +5526,10 @@ function availableChains(){
     const withSweet=base.filter(k=>{ const co=chainObj(k); return co && sweetPool(co).length; });
     if(withSweet.length) base=withSweet;
   }
+  if(state.filters.under10 || state.filters.maxPrice || state.filters.ballin){
+    const priced=base.filter(k=>{ const co=chainObj(k); return co && !co.items.some(i=>i.p==null); });
+    if(priced.length) base=priced; // can't promise a budget for a menu with unpublished prices
+  }
   const cats=state.filters.cats.filter(c=>CATEGORIES[c]);
   if(cats.length){
     const allowed=new Set(); cats.forEach(c=>CATEGORIES[c].forEach(k=>allowed.add(k)));
@@ -5354,12 +5568,12 @@ function render(chain, combo, chainKey){
     $("rLoc").classList.remove("show");
   }
   $("rItems").innerHTML=combo.items.map(i=>
-    `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${i.mod}</span>`:""}</div><div class="pr">$${(i.p*(i.qty||1)).toFixed(2)}</div></div>`
+    `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${i.mod}</span>`:""}</div>${i.p==null?"":`<div class="pr">${(i.p*(i.qty||1)).toFixed(2)}</div>`}</div>`
   ).join("");
   const p=price(combo.items), c=cals(combo.items);
-  $("rPrice").textContent="$"+p.toFixed(2);
+  $("rPrice").textContent = p===null ? "Not listed" : "$"+p.toFixed(2);
   $("rCal").textContent=c.toLocaleString();
-  $("rVal").textContent = p>0 ? Math.round(c/p) : "∞";
+  $("rVal").textContent = p===null ? "—" : (p>0 ? Math.round(c/p) : "∞");
   $("result").classList.add("show");
   $("result").scrollIntoView({behavior:"smooth", block:"nearest"});
 }
@@ -5368,7 +5582,7 @@ function render(chain, combo, chainKey){
 function pushHistory(chain, combo){
   try{
     const h=JSON.parse(localStorage.getItem("gr_history")||"[]");
-    h.unshift({t:new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}), chain:chain.name, items:combo.items.map(i=>(i.qty&&i.qty>1?i.qty+"x ":"")+i.n).join(", "), price:price(combo.items).toFixed(2)});
+    h.unshift({t:new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}), chain:chain.name, items:combo.items.map(i=>(i.qty&&i.qty>1?i.qty+"x ":"")+i.n).join(", "), price:(price(combo.items)===null?"":price(combo.items).toFixed(2))});
     localStorage.setItem("gr_history",JSON.stringify(h.slice(0,12)));
     drawHistory();
   }catch(e){}
@@ -5379,7 +5593,7 @@ function drawHistory(){
   if(!h.length){ $("history").innerHTML=""; $("history").classList.remove("open"); return; }
   $("history").innerHTML = "<div class='panel'><div class='histhead' id='histHead'><h3>History</h3><span class='histtog'>"+(histOpen?"[−]":"[+]")+"</span></div>"
     + "<div class='histbody'>"+h.map(x=>
-        `<div class="hitem"><b>${x.chain}</b> <span class="hz">· $${x.price} · ${x.t}</span><br><span class="hz">${x.items}</span></div>`
+        `<div class="hitem"><b>${x.chain}</b> <span class="hz">${x.price?" · $"+x.price:""} · ${x.t}</span><br><span class="hz">${x.items}</span></div>`
       ).join("")+"</div></div>";
   $("history").classList.toggle("open", histOpen);
   $("histHead").onclick=()=>{ histOpen=!histOpen; drawHistory(); };
