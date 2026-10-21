@@ -91,6 +91,13 @@
     .demo-pill{background:#fde8eb; border-color:#f0bfc6;}
     #drawer{box-shadow:-8px 0 30px rgba(0,0,0,.12);}
   }
+  .locbar{padding:7px 16px; font-size:12.5px; color:var(--muted); background:var(--card2); display:none;}
+  .locbar.show{display:block;}
+  @media (min-width:760px){
+    #burgerBtn{position:fixed; top:18px; left:18px; z-index:35;}
+    .topbar{justify-content:center;}
+    .topspace{display:none;}
+  }
 
 </style>
 </head>
@@ -102,7 +109,7 @@
       <div class="logo">GRUB<span>ROULETTE</span></div>
       <div class="topspace"></div>
     </div>
-    <div style="text-align:center;"><span class="demo-pill">v4 · live any-ZIP lookup · prices &amp; calories are estimates</span></div>
+    <div style="text-align:center;"><span class="demo-pill">v5 · live any-ZIP lookup · prices &amp; calories are estimates</span></div>
   </header>
 
   <div class="panel">
@@ -116,6 +123,7 @@
 
   <div id="result">
     <div class="chainbar" id="rChain"></div>
+    <div class="locbar" id="rLoc"></div>
     <div class="rbody">
       <div id="rItems"></div>
       <div class="totals">
@@ -132,7 +140,7 @@
   <div id="history"></div>
 
   <footer>
-    v4 — live ZIP lookup via OpenStreetMap (free, no key). Combos are generated for fun from estimated menu data.<br>
+    v5 — live ZIP lookup via OpenStreetMap (free, no key). Combos are generated for fun from estimated menu data.<br>
     Prices &amp; calories are rough estimates and vary by location. Water cups are free at most places if you ask nicely.<br>
     <span class="clearlink" id="clearHist">clear history</span>
   </footer>
@@ -165,6 +173,7 @@
     <div class="chip cat" data-v="mexican">Mexican</div>
     <div class="chip cat" data-v="sandwiches">Sandwiches &amp; Subs</div>
     <div class="chip cat" data-v="asian">Asian</div>
+    <div class="chip cat" data-v="pizza">Pizza</div>
     <div class="chip cat" data-v="sweets">Sweets &amp; Desserts</div>
   </div>
 
@@ -406,6 +415,84 @@ panda:{ name:"Panda Express", color:"#c0282d", items:[
  ], secrets:[
   {name:"The Bigger Plate", needs:["Orange Chicken","Beijing Beef","Kung Pao Chicken"], mods:"Bigger plate: all three entrées, half chow mein / half fried rice", script:"Order the bigger plate with orange chicken, Beijing beef and kung pao, half-and-half chow mein and fried rice.", why:"Three entrées, one tray, zero restraint. The correct Panda order."}
  ]},
+dominos:{ name:"Domino's", color:"#006491", items:[
+  {n:"Medium Cheese Pizza",p:6.99,c:1680,t:["main","salty","cheesy","greasy"]},
+  {n:"Medium Pepperoni Pizza",p:7.99,c:1900,t:["main","salty","cheesy","greasy","meaty"]},
+  {n:"Medium 2-Topping Pizza",p:7.99,c:1750,t:["main","salty","cheesy"]},
+  {n:"Stuffed Cheesy Bread",p:6.49,c:1180,t:["side","salty","cheesy"]},
+  {n:"Parmesan Bread Bites (16pc)",p:4.49,c:700,t:["side","salty","cheesy","value"]},
+  {n:"Marbled Cookie Brownie",p:6.49,c:1440,t:["dessert","sweet"]},
+  {n:"Chocolate Lava Cake",p:5.49,c:690,t:["dessert","sweet"]},
+  {n:"Coke (20 oz)",p:2.19,c:240,t:["drink","sweet"]},
+ ]},
+pizzahut:{ name:"Pizza Hut", color:"#ee3124", items:[
+  {n:"Personal Pan Pizza (Pepperoni)",p:5.99,c:600,t:["main","salty","cheesy","meaty"]},
+  {n:"Medium Pepperoni Pizza",p:11.99,c:1900,t:["main","salty","cheesy","greasy","meaty"]},
+  {n:"Medium Cheese Pizza",p:10.99,c:1760,t:["main","salty","cheesy"]},
+  {n:"Breadsticks (5pc)",p:5.49,c:750,t:["side","salty","cheesy"]},
+  {n:"Cheese Sticks",p:6.49,c:890,t:["side","salty","cheesy"]},
+  {n:"Cinnamon Sticks",p:4.99,c:530,t:["dessert","sweet"]},
+  {n:"Pepsi (20 oz)",p:2.29,c:250,t:["drink","sweet"]},
+ ]},
+littlecaesars:{ name:"Little Caesars", color:"#ff6712", items:[
+  {n:"Classic Pepperoni Pizza",p:6.99,c:2040,t:["main","salty","cheesy","greasy","meaty","value"]},
+  {n:"Classic Cheese Pizza",p:6.99,c:1920,t:["main","salty","cheesy","value"]},
+  {n:"Crazy Bread (8pc)",p:4.49,c:1060,t:["side","salty","cheesy","value"]},
+  {n:"Caesar Wings (8pc)",p:7.49,c:660,t:["main","salty","meaty"]},
+  {n:"Stuffed Crazy Bread",p:5.49,c:1200,t:["side","salty","cheesy"]},
+  {n:"Pepsi (20 oz)",p:2.29,c:250,t:["drink","sweet"]},
+ ]},
+fiveguys:{ name:"Five Guys", color:"#d21034", items:[
+  {n:"Little Cheeseburger",p:8.99,c:550,t:["main","salty","greasy","meaty"]},
+  {n:"Cheeseburger",p:10.99,c:840,t:["main","salty","greasy","meaty"]},
+  {n:"Bacon Cheeseburger",p:11.99,c:920,t:["main","salty","greasy","meaty"]},
+  {n:"Little Fries",p:4.99,c:530,t:["side","salty","veg"]},
+  {n:"Regular Fries",p:5.99,c:950,t:["side","salty","veg"]},
+  {n:"Hot Dog",p:6.49,c:520,t:["main","salty","meaty"]},
+  {n:"Milkshake",p:5.49,c:670,t:["dessert","drink","sweet"]},
+  {n:"Coke (20 oz)",p:2.49,c:240,t:["drink","sweet"]},
+ ]},
+raisingcanes:{ name:"Raising Cane's", color:"#ce0e2d", items:[
+  {n:"3 Finger Combo",p:8.99,c:1020,t:["main","salty","meaty"]},
+  {n:"Box Combo (4 Fingers)",p:10.49,c:1250,t:["main","salty","meaty"]},
+  {n:"Caniac Combo (6 Fingers)",p:15.49,c:1890,t:["main","salty","greasy","meaty"]},
+  {n:"Chicken Finger (single)",p:1.89,c:130,t:["main","salty","meaty","value"]},
+  {n:"Crinkle-Cut Fries",p:2.49,c:390,t:["side","salty","veg"]},
+  {n:"Texas Toast",p:1.19,c:120,t:["side","salty","value"]},
+  {n:"Coleslaw",p:1.19,c:90,t:["side","salty","veg","value"]},
+  {n:"Cane's Sauce (extra cup)",p:0.39,c:190,t:["side","salty","value"]},
+  {n:"Sweet Tea",p:2.29,c:180,t:["drink","sweet"]},
+  {n:"Lemonade",p:2.59,c:170,t:["drink","sweet"]},
+ ]},
+sonic:{ name:"Sonic", color:"#00427a", items:[
+  {n:"Sonic Cheeseburger",p:5.99,c:710,t:["main","salty","greasy","meaty"]},
+  {n:"SuperSonic Double Cheeseburger",p:7.49,c:940,t:["main","salty","greasy","meaty"]},
+  {n:"Corn Dog",p:1.99,c:230,t:["main","salty","meaty","value"]},
+  {n:"Breakfast Burrito",p:4.49,c:390,t:["main","salty","meaty","breakfast"]},
+  {n:"Tots (M)",p:2.79,c:360,t:["side","salty","veg"]},
+  {n:"Mozzarella Sticks (4pc)",p:3.99,c:360,t:["side","salty","cheesy"]},
+  {n:"Cherry Limeade (M)",p:2.99,c:270,t:["drink","sweet"]},
+  {n:"Vanilla Shake (M)",p:4.29,c:570,t:["dessert","sweet"]},
+ ]},
+dairyqueen:{ name:"Dairy Queen", color:"#0072bc", items:[
+  {n:"Cheeseburger",p:4.29,c:370,t:["main","salty","meaty","value"]},
+  {n:"Bacon Cheeseburger",p:5.49,c:520,t:["main","salty","greasy","meaty"]},
+  {n:"Chicken Strip Basket (4pc)",p:8.49,c:890,t:["main","salty","meaty"]},
+  {n:"Fries (regular)",p:2.99,c:290,t:["side","salty","veg"]},
+  {n:"Onion Rings",p:3.49,c:400,t:["side","salty","veg"]},
+  {n:"Blizzard (M)",p:5.49,c:710,t:["dessert","sweet"]},
+  {n:"Dipped Cone",p:2.79,c:330,t:["dessert","sweet","value"]},
+  {n:"Coke (M)",p:2.19,c:210,t:["drink","sweet"]},
+ ]},
+wingstop:{ name:"Wingstop", color:"#024731", items:[
+  {n:"10pc Classic Wings",p:11.49,c:880,t:["main","salty","meaty"]},
+  {n:"10pc Boneless Wings",p:9.99,c:640,t:["main","salty","meaty"]},
+  {n:"5pc Tenders",p:9.49,c:510,t:["main","salty","meaty"]},
+  {n:"Seasoned Fries (regular)",p:3.49,c:390,t:["side","salty","veg"]},
+  {n:"Veggie Sticks",p:2.49,c:60,t:["side","salty","veg","value"]},
+  {n:"Ranch (cup)",p:0.99,c:160,t:["side","salty","value"]},
+  {n:"Coke (20 oz)",p:2.39,c:240,t:["drink","sweet"]},
+ ]},
 };
 const CHAIN_KEYS = Object.keys(CHAINS);
 
@@ -413,7 +500,7 @@ const CHAIN_KEYS = Object.keys(CHAINS);
 /* Only chains with full menu data are suggested. ZIP_ALSO = nearby but menu data TBD. */
 const ZIP_CHAINS = {
   "90001": ["mcdonalds","jackinthebox","burgerking","tacobell"],
-  "90026": ["mcdonalds","jackinthebox","kfc","chipotle"],
+  "90026": ["mcdonalds","jackinthebox","kfc","chipotle","dominos","pizzahut"],
   "90066": ["mcdonalds","jackinthebox","chickfila","deltaco","innout"],
   "90302": ["mcdonalds","carlsjr","popeyes","innout"],
   "91042": ["mcdonalds","jackinthebox","popeyes","innout"],
@@ -441,6 +528,10 @@ const BRAND_ALIASES = {
   "kfc":"kfc","kentucky fried chicken":"kfc",
   "chipotle":"chipotle","chipotle mexican grill":"chipotle",
   "el pollo loco":"elpollo","subway":"subway","panda express":"panda",
+  "domino's":"dominos","domino's pizza":"dominos","dominos":"dominos",
+  "pizza hut":"pizzahut","little caesars":"littlecaesars","little caesar's":"littlecaesars",
+  "five guys":"fiveguys","raising cane's":"raisingcanes","raising cane's chicken fingers":"raisingcanes",
+  "sonic":"sonic","sonic drive-in":"sonic","dairy queen":"dairyqueen","wingstop":"wingstop",
 };
 function normalizeBrand(s){ return (s||"").toLowerCase().replace(/['']/g,"'").replace(/\s+/g," ").trim(); }
 function chainKeyFromBrand(brand, name){
@@ -455,51 +546,72 @@ function chainKeyFromBrand(brand, name){
   return null;
 }
 function setZipNote(t){ $("zipnote").textContent=t; }
+function distMi(lat1, lon1, lat2, lon2){
+  const R=3958.8, dLa=(lat2-lat1)*Math.PI/180, dLo=(lon2-lon1)*Math.PI/180;
+  const a=Math.pow(Math.sin(dLa/2),2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.pow(Math.sin(dLo/2),2);
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function placesFromElements(elements, qlat, qlon){
+  const keys=new Set(), nearest={};
+  let total=0;
+  for (const el of (elements||[])){
+    const t=el.tags||{};
+    if(!t.name && !t.brand) continue;
+    total++;
+    const k=chainKeyFromBrand(t.brand||t["brand:en"], t.name);
+    if(!k || !CHAINS[k]) continue;
+    keys.add(k);
+    const lat = el.lat!=null ? el.lat : (el.center ? el.center.lat : null);
+    const lon = el.lon!=null ? el.lon : (el.center ? el.center.lon : null);
+    if(lat==null || lon==null) continue;
+    const d = distMi(qlat, qlon, lat, lon);
+    const addr = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ") || null;
+    const cur = nearest[k];
+    if(!cur || d<cur.dist) nearest[k]={name:t.name||CHAINS[k].name, addr, dist:Math.round(d*10)/10};
+  }
+  return {keys:[...keys], total, nearest};
+}
 const OVERPASS_ENDPOINTS = ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
-async function overpassChains(lat, lon){
-  const q = '[out:json][timeout:20];(node["amenity"="fast_food"](around:5000,'+lat+','+lon+');way["amenity"="fast_food"](around:5000,'+lat+','+lon+'););out tags;';
+async function overpassPlaces(lat, lon){
+  const q = '[out:json][timeout:20];(node["amenity"="fast_food"](around:5000,'+lat+','+lon+');way["amenity"="fast_food"](around:5000,'+lat+','+lon+'););out tags center;';
   let lastErr = null;
   for (const ep of OVERPASS_ENDPOINTS){
     try{
       const r = await fetch(ep,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"data="+encodeURIComponent(q)});
       if(!r.ok) throw new Error("http "+r.status);
       const o = await r.json();
-      const keys = new Set();
-      for (const el of (o.elements||[])){
-        const t = el.tags||{};
-        const k = chainKeyFromBrand(t.brand||t["brand:en"], t.name);
-        if (k && CHAINS[k]) keys.add(k);
-      }
-      return [...keys];
+      return placesFromElements(o.elements||[], lat, lon);
     }catch(e){ lastErr = e; }
   }
   throw lastErr || new Error("overpass failed");
 }
 function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
+  state.nearest = rec.nearest || null;
   const names = rec.keys.map(k=>CHAINS[k].name);
-  if (rec.keys.length>=2) setZipNote(" Near "+zip+(rec.city?" ("+rec.city+")":"")+": "+names.join(", ")+". Live data, cached.");
-  else if (rec.keys.length===1) setZipNote(" Near "+zip+": only "+names[0]+" from our menu list found in open data — rolls stick to it. Clear the ZIP for all chains.");
-  else setZipNote(" Near "+zip+": no chains from our menu list in the open data nearby — showing all chains.");
+  const tot = rec.total ? " Found "+rec.total+" fast food spots nearby in total." : "";
+  if (rec.keys.length>=2) setZipNote("Near "+zip+(rec.city?" ("+rec.city+")":"")+": "+names.join(", ")+"."+tot+" Live data, cached.");
+  else if (rec.keys.length===1) setZipNote("Near "+zip+": only "+names[0]+" from our menu list found nearby — rolls stick to it. Clear the ZIP for all chains.");
+  else setZipNote("Near "+zip+": no chains from our menu list in the open data nearby — showing all chains.");
 }
 async function lookupZip(zip){
   try{
-    const c = JSON.parse(localStorage.getItem("gr_zipcache")||"{}");
+    const c = JSON.parse(localStorage.getItem("gr_zipcache2")||"{}");
     if (c[zip] && Date.now()-c[zip].t < 7*24*3600*1000){ applyLive(zip, c[zip]); return; }
   }catch(e){}
-  setZipNote(" Finding fast food near "+zip+"…");
+  setZipNote("Finding fast food near "+zip+"…");
   try{
     const g = await fetch("https://nominatim.openstreetmap.org/search?postalcode="+zip+"&country=US&format=json&limit=1").then(r=>r.json());
     if(!g.length) throw new Error("zip not found");
     const city = (g[0].display_name||"").split(",")[1] ? (g[0].display_name||"").split(",")[1].trim() : "";
-    const keys = await overpassChains(+g[0].lat, +g[0].lon);
-    const rec = {t:Date.now(), keys, city};
-    try{ const c=JSON.parse(localStorage.getItem("gr_zipcache")||"{}"); c[zip]=rec; localStorage.setItem("gr_zipcache",JSON.stringify(c)); }catch(e){}
+    const res = await overpassPlaces(+g[0].lat, +g[0].lon);
+    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city};
+    try{ const c=JSON.parse(localStorage.getItem("gr_zipcache2")||"{}"); c[zip]=rec; localStorage.setItem("gr_zipcache2",JSON.stringify(c)); }catch(e){}
     applyLive(zip, rec);
   }catch(e){
-    state.liveKeys = null;
-    if (ZIP_CHAINS[zip]) setZipNote(" Live lookup hiccup — using saved test data for "+zip+".");
-    else setZipNote(" Live lookup hiccup for "+zip+" — showing all chains.");
+    state.liveKeys = null; state.nearest = null;
+    if (ZIP_CHAINS[zip]) setZipNote("Live lookup hiccup — using saved test data for "+zip+".");
+    else setZipNote("Live lookup hiccup for "+zip+" — showing all chains.");
   }
 }
 
@@ -509,14 +621,15 @@ const rand = a => a[Math.floor(Math.random()*a.length)];
 const shuffle = a => { const x=[...a]; for(let i=x.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [x[i],x[j]]=[x[j],x[i]];} return x; };
 const WATER = {n:"Water cup", p:0, c:0, t:["drink"], mod:"free at most places if you ask nicely"};
 const CATEGORIES = {
-  burgers:["mcdonalds","burgerking","wendys","carlsjr","innout","jackinthebox"],
-  chicken:["chickfila","kfc","popeyes","elpollo"],
+  burgers:["mcdonalds","burgerking","wendys","carlsjr","innout","jackinthebox","fiveguys","sonic","dairyqueen"],
+  chicken:["chickfila","kfc","popeyes","elpollo","raisingcanes","wingstop"],
   mexican:["tacobell","deltaco","elpollo","chipotle"],
   sandwiches:["subway","chickfila"],
   asian:["panda"],
+  pizza:["dominos","pizzahut","littlecaesars"],
 };
-const CAT_LABELS = {burgers:"Burgers", chicken:"Chicken", mexican:"Mexican", sandwiches:"Sandwiches & Subs", asian:"Asian", sweets:"Sweets & Desserts"};
-const state = { zip:"", liveKeys:null, lastKey:null,
+const CAT_LABELS = {burgers:"Burgers", chicken:"Chicken", mexican:"Mexican", sandwiches:"Sandwiches & Subs", asian:"Asian", pizza:"Pizza", sweets:"Sweets & Desserts"};
+const state = { zip:"", liveKeys:null, nearest:null, lastKey:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false } };
 
 const price = items => items.reduce((s,i)=>s+i.p*(i.qty||1),0);
@@ -643,13 +756,21 @@ function roll(){
   if(key===state.lastKey && rollDepth<3){ rollDepth++; return roll(); }
   rollDepth=0;
   state.lastKey=key;
-  render(chain, combo);
+  render(chain, combo, chainKey);
   pushHistory(chain, combo);
 }
 
-function render(chain, combo){
+function render(chain, combo, chainKey){
   $("rChain").textContent=chain.name;
   $("rChain").style.background=chain.color;
+  const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
+  if(loc){
+    $("rLoc").textContent = "Nearest: " + (loc.addr ? loc.addr : loc.name) + " · " + (loc.dist<0.1 ? "right here" : loc.dist.toFixed(1)+" mi away");
+    $("rLoc").classList.add("show");
+  } else {
+    $("rLoc").textContent = "";
+    $("rLoc").classList.remove("show");
+  }
   $("rItems").innerHTML=combo.items.map(i=>
     `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${i.mod}</span>`:""}</div><div class="pr">$${(i.p*(i.qty||1)).toFixed(2)}</div></div>`
   ).join("");
@@ -686,11 +807,11 @@ $("zip").addEventListener("input",e=>{
   e.target.value=z;
   clearTimeout(zipTimer);
   if(z.length===5){
-    state.zip=z; state.liveKeys=null;
+    state.zip=z; state.liveKeys=null; state.nearest=null;
     setZipNote("Finding fast food near "+z+"…");
     zipTimer=setTimeout(()=>lookupZip(z), 500);
   } else {
-    state.zip=""; state.liveKeys=null;
+    state.zip=""; state.liveKeys=null; state.nearest=null;
     setZipNote("Type any US ZIP and the app looks up what's actually near it (live OpenStreetMap data). No ZIP = all "+CHAIN_KEYS.length+" chains.");
   }
 });
