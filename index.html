@@ -17,7 +17,6 @@
   .logo{font-size:34px; font-weight:900; letter-spacing:-1px;}
   .logo span{color:var(--acc);}
   .tag{color:var(--muted); font-size:14px; margin-top:2px;}
-  .demo-pill{display:inline-block; margin-top:8px; font-size:11px; background:#2e1214; color:var(--acc2); border:1px solid #5e1f24; padding:3px 10px; border-radius:20px;}
   .panel{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-top:14px;}
   .panel h3{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);}
   .row{display:flex; gap:8px; flex-wrap:wrap;}
@@ -56,6 +55,11 @@
   #history .hitem{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-top:8px; font-size:13px;}
   #history .hitem b{font-size:14px;}
   #history .hitem .hz{color:var(--muted); font-size:12px;}
+  #history .histhead{display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;}
+  #history .histhead h3{margin:0;}
+  #history .histtog{color:var(--muted); font-weight:800;}
+  #history .histbody{display:none;}
+  #history.open .histbody{display:block; margin-top:4px;}
   footer{margin-top:26px; text-align:center; color:var(--muted); font-size:11px; line-height:1.6; padding:0 20px;}
   .clearlink{color:var(--muted); text-decoration:underline; cursor:pointer; font-size:12px;}
   .topbar{display:flex; justify-content:space-between; align-items:center;}
@@ -88,7 +92,6 @@
     }
     .chip.on{background:#fde8eb;}
     .tgl.on{background:#fde8eb;}
-    .demo-pill{background:#fde8eb; border-color:#f0bfc6;}
     #drawer{box-shadow:-8px 0 30px rgba(0,0,0,.12);}
   }
   .locbar{padding:7px 16px; font-size:12.5px; color:var(--muted); background:var(--card2); display:none;}
@@ -109,13 +112,12 @@
       <div class="logo">GRUB<span>ROULETTE</span></div>
       <div class="topspace"></div>
     </div>
-    <div style="text-align:center;"><span class="demo-pill">v6 · live any-ZIP lookup · prices &amp; calories are estimates</span></div>
   </header>
 
   <div class="panel">
     <h3>Where you at</h3>
     <input class="zip" id="zip" inputmode="numeric" maxlength="5" placeholder="Any US ZIP code">
-    <div class="zipnote" id="zipnote">Type any US ZIP and the app looks up what's actually near it (live OpenStreetMap data). No ZIP = all chains.</div>
+    <div class="zipnote" id="zipnote">Type any US ZIP — the app finds the fast food near it. No ZIP = all chains.</div>
   </div>
 
   <button id="feedme">FEED ME</button>
@@ -132,7 +134,7 @@
         <div class="stat"><b id="rVal"></b><span>cal / dollar</span></div>
       </div>
       <div class="actions">
-        <button class="btn" id="btnAgain">🔄 Roll again</button>
+        <button class="btn" id="btnAgain">🎲 Roll again</button>
       </div>
     </div>
   </div>
@@ -140,8 +142,8 @@
   <div id="history"></div>
 
   <footer>
-    v6 — live ZIP lookup via Google Places (OpenStreetMap backup). Combos are generated for fun from estimated menu data.<br>
-    Prices &amp; calories are rough estimates and vary by location. Water cups are free at most places if you ask nicely.<br>
+    Live ZIP lookup via Google Places (OpenStreetMap backup). Combos are generated for fun from estimated menu data.<br>
+    Prices &amp; calories are rough estimates and vary by location.<br>
     <span class="clearlink" id="clearHist">clear history</span>
   </footer>
 </div>
@@ -613,11 +615,7 @@ async function googlePlaces(lat, lon){
 function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
-  const names = rec.keys.map(k=>CHAINS[k].name);
-  const tot = rec.total ? (rec.src==="google" ? " Checked the "+rec.total+" closest spots." : " Found "+rec.total+" fast food spots nearby in total.") : "";
-  if (rec.keys.length>=2) setZipNote("Near "+zip+(rec.city?" ("+rec.city+")":"")+": "+names.join(", ")+"."+tot+(rec.src==="google" ? " Google data, cached." : " Live data, cached."));
-  else if (rec.keys.length===1) setZipNote("Near "+zip+": only "+names[0]+" from our menu list found nearby — rolls stick to it. Clear the ZIP for all chains.");
-  else setZipNote("Near "+zip+": no chains from our menu list found nearby — showing all chains.");
+  setZipNote("");
 }
 async function lookupZip(zip){
   try{
@@ -819,12 +817,16 @@ function pushHistory(chain, combo){
     drawHistory();
   }catch(e){}
 }
+let histOpen=false;
 function drawHistory(){
   let h=[]; try{ h=JSON.parse(localStorage.getItem("gr_history")||"[]"); }catch(e){}
-  $("history").innerHTML = h.length
-    ? "<div class='panel'><h3>Tonight's pulls</h3>"+h.map(x=>
+  if(!h.length){ $("history").innerHTML=""; $("history").classList.remove("open"); return; }
+  $("history").innerHTML = "<div class='panel'><div class='histhead' id='histHead'><h3>History</h3><span class='histtog'>"+(histOpen?"[−]":"[+]")+"</span></div>"
+    + "<div class='histbody'>"+h.map(x=>
         `<div class="hitem"><b>${x.chain}</b> <span class="hz">· $${x.price} · ${x.t}</span><br><span class="hz">${x.items}</span></div>`
-      ).join("")+"</div>" : "";
+      ).join("")+"</div></div>";
+  $("history").classList.toggle("open", histOpen);
+  $("histHead").onclick=()=>{ histOpen=!histOpen; drawHistory(); };
 }
 $("clearHist").onclick=()=>{ try{localStorage.removeItem("gr_history");}catch(e){} drawHistory(); };
 
@@ -840,7 +842,7 @@ $("zip").addEventListener("input",e=>{
     zipTimer=setTimeout(()=>lookupZip(z), 500);
   } else {
     state.zip=""; state.liveKeys=null; state.nearest=null;
-    setZipNote("Type any US ZIP and the app looks up what's actually near it (live OpenStreetMap data). No ZIP = all "+CHAIN_KEYS.length+" chains.");
+    setZipNote("Type any US ZIP — the app finds the fast food near it. No ZIP = all "+CHAIN_KEYS.length+" chains.");
   }
 });
 
