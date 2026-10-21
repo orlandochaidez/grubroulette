@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <title>GrubRoulette</title>
 <style>
   :root{
@@ -20,7 +21,7 @@
   .panel{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-top:14px;}
   .panel h3{margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted);}
   .row{display:flex; gap:8px; flex-wrap:wrap;}
-  .chip{flex:1 1 0; min-width:0; text-align:center; padding:10px 4px; border-radius:12px; border:1px solid var(--line); background:var(--card2); color:var(--ink); font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;}
+  .chip{flex:1 1 0; min-width:0; text-align:center; padding:10px 4px; border-radius:12px; border:1px solid var(--line); background:var(--card2); color:var(--ink); font-size:14px; font-weight:600; cursor:pointer;}
   .chip small{display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:2px;}
   .chip.on{border-color:var(--acc); background:#331014; box-shadow:0 0 0 1px var(--acc);}
   .chip.mode{flex:1 1 45%;}
@@ -37,10 +38,11 @@
   .comboname{font-size:22px; font-weight:900; margin:0 0 2px;}
   .why{color:var(--muted); font-size:13px; font-style:italic; margin-bottom:12px;}
   .item{display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-top:1px dashed var(--line); font-size:15px;}
+  .item>div:first-child{min-width:0; overflow-wrap:break-word;}
   .item .mod{display:block; font-size:12px; color:var(--acc2);}
   .item .pr{color:var(--muted); white-space:nowrap;}
   .totals{display:flex; gap:10px; margin-top:12px;}
-  .stat{flex:1; background:var(--card2); border-radius:12px; padding:10px; text-align:center;}
+  .stat{flex:1; min-width:0; background:var(--card2); border-radius:12px; padding:10px; text-align:center;}
   .stat b{display:block; font-size:19px;}
   .stat span{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
   .script{margin-top:12px; background:#17251c; border:1px solid #2c4a33; border-radius:12px; padding:12px; font-size:14px;}
@@ -100,6 +102,23 @@
     #burgerBtn{position:fixed; top:18px; left:18px; z-index:35;}
     .topbar{justify-content:center;}
     .topspace{display:none;}
+  }
+  /* Calorie chips get two-per-line so the ranges never squeeze */
+  #calRow .chip{flex:1 1 45%;}
+  #history .hz{overflow-wrap:anywhere;}
+  /* Small phones: scale the big pieces down so nothing crowds */
+  @media (max-width:480px){
+    .wrap{padding:14px 12px;}
+    .logo{font-size:27px;}
+    #feedme{font-size:21px; padding:17px;}
+    .chip{font-size:13px; padding:9px 3px;}
+    #drawer{width:340px; max-width:92vw; padding:16px;}
+    .item{font-size:14px;}
+    .stat{padding:8px 4px;}
+    .stat b{font-size:16px;}
+    .stat span{font-size:10px;}
+    .chainbar{font-size:14px; padding:9px 12px;}
+    .rbody{padding:12px;}
   }
 
 </style>
