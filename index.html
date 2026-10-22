@@ -189,7 +189,7 @@
 <aside id="drawer">
   <div class="dhead"><b>Filters</b><button id="drawerClose">✕</button></div>
   <button class="btn" id="dealsBtn" style="width:100%; margin-top:14px;">Today's Deals</button>
-  <div style="font-size:11px; color:var(--muted); margin-top:6px; text-align:center;">Bakersfield-checked · fresh drop daily ~10:52am</div>
+  <div style="font-size:11px; color:var(--muted); margin-top:6px; text-align:center;">Bakersfield-checked · fresh drop daily ~7:20am</div>
 
   <h4>Max price</h4>
   <div class="row" id="priceRow">
@@ -6890,8 +6890,8 @@ async function loadDeals(){
     const data=await r.json(); dealsLoaded=true;
     const today=new Date(); const iso=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
     const d=new Date(data.date+"T12:00:00");
-    dateEl.textContent="Drop: "+d.toLocaleDateString(undefined,{weekday:"long", month:"long", day:"numeric"})+(data.date!==iso?" · today's drop lands ~10:52am":"");
-    if(!data.deals || !data.deals.length){ list.innerHTML='<p style="color:var(--muted); font-size:14px;">No deals posted yet — the drop lands ~10:52am PT.</p>'; return; }
+    dateEl.textContent="Drop: "+d.toLocaleDateString(undefined,{weekday:"long", month:"long", day:"numeric"})+(data.date!==iso?" · today's drop lands ~7:20am":"");
+    if(!data.deals || !data.deals.length){ list.innerHTML='<p style="color:var(--muted); font-size:14px;">No deals posted yet — the drop lands ~7:20am PT.</p>'; return; }
     list.innerHTML=data.deals.map(deal=>{
       const canRoll=deal.chainKey && chainObj(deal.chainKey);
       return '<div class="deal"><b>'+deal.chain+'</b><p>'+deal.text+'</p><div class="meta">'
@@ -6902,7 +6902,7 @@ async function loadDeals(){
     }).join("");
     list.querySelectorAll(".roll").forEach(b=>b.addEventListener("click", ()=>{ closeDeals(); closeDrawer(); rollChain(b.dataset.ck); }));
   }catch(e){
-    list.innerHTML='<p style="color:var(--muted); font-size:14px;">Couldn\'t load today\'s deals — check back after the 10:52am drop.</p>';
+    list.innerHTML='<p style="color:var(--muted); font-size:14px;">Couldn\'t load today\'s deals — check back after the 7:20am drop.</p>';
   }
 }
 </script>
