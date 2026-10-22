@@ -6600,7 +6600,7 @@ function fitBudget(chainKey, items, budget){
     if(droppable.length && items.length>1){ items.splice(items.indexOf(droppable[0]),1); continue; }
     break;
   }
-  if(!items.some(i=>i.t.includes("drink"))) items.push({...WATER});
+  if(!items.some(i=>i.t.includes("drink"))) items.push(refillDrink(chainKey, items)); // budget dropped the drink: a cheaper real one that fits beats water
   return items;
 }
 
@@ -6610,13 +6610,17 @@ function fitCalories(chainKey, picks){
   const [mn,mx]=calBounds();
   let guard=0;
   while(cals(picks)>mx && guard++<10){
-    const extra=picks.filter(i=>!i.t.includes("main")&&i.n!=="Water cup").sort((a,b)=>b.c-a.c)[0];
+    const drink=picks.find(i=>i.t.includes("drink")&&i.n!=="Water cup");
+    if(drink){ const lighter=_elig(chainObj(chainKey).items.filter(i=>i.t.includes("drink"))).sort((a,b)=>a.c-b.c)[0];
+      if(lighter && lighter.c<drink.c){ picks[picks.indexOf(drink)]={...lighter}; continue; } }
+    const extra=picks.filter(i=>!i.t.includes("main")&&!i.t.includes("drink")&&i.n!=="Water cup").sort((a,b)=>b.c-a.c)[0];
     if(extra){ picks.splice(picks.indexOf(extra),1); continue; }
     const main=picks.find(i=>i.t.includes("main"));
     if(main){
       const lighter=_elig(chainObj(chainKey).items.filter(i=>i.t.includes("main"))).sort((a,b)=>a.c-b.c)[0];
       if(lighter && lighter.n!==main.n){ picks[picks.indexOf(main)]={...lighter}; continue; }
     }
+    if(drink){ picks.splice(picks.indexOf(drink),1); continue; } // last resort: the drink goes (exit refill pours what fits, else water)
     break;
   }
   guard=0;
@@ -6633,8 +6637,17 @@ function fitCalories(chainKey, picks){
 function bestValue(pool){ const val=i=> i.p==null ? 0 : i.c/Math.max(i.p,.01); return [...pool].sort((a,b)=>val(b)-val(a))[0]; }
 function pickDrink(chain){
   const d=cat(chain.items,"drink");
-  if(!d.length) return {...WATER};
-  return Math.random()<0.3 ? {...WATER} : {...rand(d)};
+  if(!d.length) return {...WATER}; // water cup is ONLY the fallback for menus with no drinks (Orlando, 2026-10-22)
+  return {...rand(d)};
+}
+function refillDrink(ck, picks){ // a real drink that still fits the caps beats the water cup
+  const chain=chainObj(ck); if(!chain) return {...WATER};
+  const mx=calBounds()[1], head=mx-cals(picks);
+  const cap=effCap(); const pt=price(picks);
+  let cands=chain.items.filter(i=>i.t.includes("drink") && !picks.some(p=>p.n===i.n));
+  if(state.filters.ballin) cands=cands.filter(valOK);
+  cands=cands.filter(i=> i.c<=head && (pt===null || cap===Infinity || i.p==null || pt+i.p<=cap));
+  return cands.length ? {...rand(cands)} : {...WATER};
 }
 function buildMeal(ck, chain){
   const F=state.filters;
@@ -6647,7 +6660,7 @@ function buildMeal(ck, chain){
     const bm=cat(items,"main").filter(valOK);
     main={...bestValue(bm.length?bm:cat(items,"main"))}; // fallback only if nothing anywhere qualifies
     const sp=cat(items,"side").filter(valOK); if(sp.length) side={...bestValue(sp)};
-    const dp=cat(items,"drink").filter(valOK); drink = dp.length && Math.random()<0.5 ? {...bestValue(dp)} : {...WATER};
+    const dp=cat(items,"drink").filter(valOK); drink = dp.length ? {...bestValue(dp)} : {...WATER};
   } else {
     main={...rand(cat(items,"main"))};
     const sp=cat(items,"side"); if(sp.length && Math.random()<0.85) side={...rand(sp)};
@@ -6656,7 +6669,7 @@ function buildMeal(ck, chain){
   let picks=[main]; if(side) picks.push(side); picks.push(drink);
   const cap=effCap(); if(cap!==Infinity) picks=fitBudget(ck,picks,cap);
   picks=fitCalories(ck,picks);
-  if(!picks.some(i=>i.t.includes("drink"))) picks.push({...WATER}); // every combo ends with a drink — water cup if nothing else survived
+  if(!picks.some(i=>i.t.includes("drink"))) picks.push(refillDrink(ck,picks)); // every combo ends with a drink — a fitting real one if the menu has any
   return {items:picks};
 }
 function sweetPool(chain){
@@ -6667,7 +6680,7 @@ function buildSweet(ck, chain){
   if(!pool.length) pool=shuffle(chain.items.filter(i=>i.t.includes("sweet")));
   let picks=pool.slice(0, Math.random()<0.5?2:3).map(i=>({...i}));
   const cap=effCap(); if(cap!==Infinity) picks=fitBudget(ck,picks,cap);
-  if(!picks.some(i=>i.t.includes("drink"))) picks.push({...WATER}); // sweet runs get a drink too
+  if(!picks.some(i=>i.t.includes("drink"))) picks.push(refillDrink(ck,picks)); // sweet runs get a drink too — a real one when the menu has any
   return {items:picks};
 }
 function buildCatering(ck, chain){
