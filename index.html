@@ -101,6 +101,19 @@
     .tgl.on{background:#fde8eb;}
     #drawer{box-shadow:8px 0 30px rgba(0,0,0,.12);}
   }
+
+  #dealsOverlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;}
+  #dealsOverlay.open{display:block;}
+  #dealsPanel{position:fixed; top:0; left:0; height:100%; width:340px; max-width:92vw; background:var(--card); border-right:1px solid var(--line); z-index:70; padding:18px; transform:translateX(-105%); transition:transform .25s ease; overflow-y:auto; box-sizing:border-box;}
+  #dealsPanel.open{transform:translateX(0);}
+  #dealsClose{background:var(--card2); border:1px solid var(--line); color:var(--ink); border-radius:10px; width:38px; height:38px; font-size:16px; cursor:pointer;}
+  .deal{border:1px solid var(--line); background:var(--card2); border-radius:12px; padding:10px 12px; margin-top:10px;}
+  .deal b{font-size:15px;}
+  .deal p{margin:4px 0 0; font-size:13.5px; color:var(--ink);}
+  .deal .meta{margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .pill{font-size:10.5px; font-weight:700; letter-spacing:.4px; padding:2px 8px; border-radius:20px; border:1px solid var(--line); color:var(--muted); text-transform:uppercase;}
+  .pill.app{color:var(--acc2); border-color:var(--acc);}
+  .deal .roll{margin-left:auto; background:var(--acc); color:#fff; border:none; border-radius:8px; padding:6px 12px; font-weight:800; font-size:12.5px; cursor:pointer;}
   .locbar{padding:7px 16px; font-size:12.5px; color:var(--muted); background:var(--card2); display:none;}
   .locbar.show{display:block;}
   @media (min-width:760px){
@@ -175,6 +188,8 @@
 <div id="drawerOverlay"></div>
 <aside id="drawer">
   <div class="dhead"><b>Filters</b><button id="drawerClose">✕</button></div>
+  <button class="btn" id="dealsBtn" style="width:100%; margin-top:14px;">Today's Deals</button>
+  <div style="font-size:11px; color:var(--muted); margin-top:6px; text-align:center;">Bakersfield-checked · fresh drop daily ~10:52am</div>
 
   <h4>Max price</h4>
   <div class="row" id="priceRow">
@@ -213,6 +228,14 @@
   <button class="btn" id="drawerDone" style="width:100%; margin-top:18px;">Done</button>
   <div class="dnote">Filters apply to your next roll. The chain lock is parked here for a future version.</div>
 </aside>
+<div id="dealsOverlay"></div>
+<aside id="dealsPanel">
+  <div class="dhead"><b>Today's Deals</b><button id="dealsClose">✕</button></div>
+  <div id="dealsDate" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
+  <div id="dealsList"><p style="color:var(--muted); font-size:14px;">Loading today's drop…</p></div>
+  <div style="font-size:11.5px; color:var(--muted); margin-top:16px; line-height:1.5;">Every deal is verified for a Bakersfield location in the morning drop. Tap <b>Roll this</b> and GrubRoulette builds you a combo from that chain on the spot.</div>
+</aside>
+
 <script>
 "use strict";
 /* ================= MENU DATA (estimates!) ================= */
@@ -6844,6 +6867,44 @@ function updateSummary(){
 $("feedme").onclick=roll;
 $("btnAgain").onclick=roll;
 drawHistory();
+
+/* ---- Today's Deals (published each morning by the daily deals job as deals.json) ---- */
+function rollChain(ck){
+  const chain=chainObj(ck); if(!chain) return;
+  const combo=buildMeal(ck, chain);
+  state.lastKey=ck+"|"+combo.items.map(i=>(i.qty?i.qty+"x":"")+i.n).join("+");
+  render(chain, combo, ck); pushHistory(chain, combo);
+}
+const dealsPanel=document.getElementById("dealsPanel"), dealsOverlay=document.getElementById("dealsOverlay");
+function openDeals(){ dealsPanel.classList.add("open"); dealsOverlay.classList.add("open"); loadDeals(); }
+function closeDeals(){ dealsPanel.classList.remove("open"); dealsOverlay.classList.remove("open"); }
+document.getElementById("dealsBtn").addEventListener("click", openDeals);
+document.getElementById("dealsClose").addEventListener("click", closeDeals);
+dealsOverlay.addEventListener("click", closeDeals);
+let dealsLoaded=false;
+async function loadDeals(){
+  if(dealsLoaded) return;
+  const list=document.getElementById("dealsList"), dateEl=document.getElementById("dealsDate");
+  try{
+    const r=await fetch("deals.json?t="+Date.now()); if(!r.ok) throw new Error("http "+r.status);
+    const data=await r.json(); dealsLoaded=true;
+    const today=new Date(); const iso=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
+    const d=new Date(data.date+"T12:00:00");
+    dateEl.textContent="Drop: "+d.toLocaleDateString(undefined,{weekday:"long", month:"long", day:"numeric"})+(data.date!==iso?" · today's drop lands ~10:52am":"");
+    if(!data.deals || !data.deals.length){ list.innerHTML='<p style="color:var(--muted); font-size:14px;">No deals posted yet — the drop lands ~10:52am PT.</p>'; return; }
+    list.innerHTML=data.deals.map(deal=>{
+      const canRoll=deal.chainKey && chainObj(deal.chainKey);
+      return '<div class="deal"><b>'+deal.chain+'</b><p>'+deal.text+'</p><div class="meta">'
+        +(deal.appOnly?'<span class="pill app">App only</span>':"")
+        +(deal.ends?'<span class="pill">Ends '+deal.ends+'</span>':"")
+        +(canRoll?'<button class="roll" data-ck="'+deal.chainKey+'">Roll this</button>':"")
+        +'</div></div>';
+    }).join("");
+    list.querySelectorAll(".roll").forEach(b=>b.addEventListener("click", ()=>{ closeDeals(); closeDrawer(); rollChain(b.dataset.ck); }));
+  }catch(e){
+    list.innerHTML='<p style="color:var(--muted); font-size:14px;">Couldn\'t load today\'s deals — check back after the 10:52am drop.</p>';
+  }
+}
 </script>
 </body>
 </html>

@@ -1,0 +1,61 @@
+{
+ "date": "2026-10-21",
+ "deals": [
+  {
+   "chain": "KFC",
+   "chainKey": "kfc",
+   "text": "Free 2-pc bone-in chicken w/ $10+ \u2014 day 4 of the 13 Days of Scary Good Deals",
+   "appOnly": true,
+   "ends": "Oct 22 (today)"
+  },
+  {
+   "chain": "Del Taco",
+   "chainKey": "deltaco",
+   "text": "BOGO Grilled Chicken Taco \u2014 Tacoberfest (Del Yeah! Rewards)",
+   "appOnly": true,
+   "ends": "Oct 24"
+  },
+  {
+   "chain": "Taco Bell",
+   "chainKey": "tacobell",
+   "text": "Paris Hilton $4 value week",
+   "appOnly": false,
+   "ends": "Oct 26"
+  },
+  {
+   "chain": "Pizza Hut",
+   "chainKey": "pizzahut",
+   "text": "My Haunt Box $6.99",
+   "appOnly": false,
+   "ends": "Nov 2"
+  },
+  {
+   "chain": "Subway",
+   "chainKey": "subway",
+   "text": "$6.99 footlong with code 699FORFTL",
+   "appOnly": false,
+   "ends": "Nov 15"
+  },
+  {
+   "chain": "Wendy's",
+   "chainKey": "wendys",
+   "text": "$1 Boo! Book (free Jr. Frosty coupons)",
+   "appOnly": false,
+   "ends": "Nov 1"
+  },
+  {
+   "chain": "Burger King",
+   "chainKey": "burgerking",
+   "text": "Whopper Wednesday $3.98",
+   "appOnly": true,
+   "ends": "Wednesdays"
+  },
+  {
+   "chain": "Jack in the Box",
+   "chainKey": "jackinthebox",
+   "text": "Heads-up: free Monster Taco + small drink if you wear a costume, Sat Oct 24",
+   "appOnly": false,
+   "ends": "Oct 24"
+  }
+ ]
+}
