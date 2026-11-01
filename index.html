@@ -154,8 +154,8 @@
 
   <div class="panel">
     <h3>Where you at</h3>
-    <input class="zip" id="zip" inputmode="numeric" maxlength="5" placeholder="Any US ZIP code">
-    <div class="zipnote" id="zipnote">Type any US ZIP — the app finds the fast food near it. No ZIP = all chains.</div>
+    <input class="zip" id="zip" placeholder="ZIP code or city, state">
+    <div class="zipnote" id="zipnote">Type a ZIP or a city (like Pismo Beach, CA) — the app finds the fast food near it. Blank = all chains.</div>
   </div>
 
   <button id="feedme">FEED ME</button>
@@ -688,6 +688,52 @@ async function lookupZip(zip){
     state.liveKeys = null; state.nearest = null;
     if (ZIP_CHAINS[zip]) setZipNote("Live lookup hiccup — using saved test data for "+zip+".");
     else setZipNote("Live lookup hiccup for "+zip+" — showing all chains.");
+  }
+}
+
+/* ---- city-name lookup: resolve "City, ST" to its ZIP, then reuse the ZIP flow ---- */
+async function lookupCity(q){
+  setZipNote("Finding fast food near "+q+"…");
+  try{
+    // split "City, ST" / "City ST" into parts for a structured search first —
+    // free-form search alone matches San Luis Obispo COUNTY before the city.
+    const parts = q.split(",").map(s=>s.trim()).filter(Boolean);
+    let cityPart = parts[0]||"", statePart = parts[1]||"";
+    if(!statePart){ const m = cityPart.match(/^(.*?)\s+([A-Za-z]{2})$/); if(m){ cityPart = m[1]; statePart = m[2]; } }
+    let g = [];
+    if(cityPart){
+      g = await fetch("https://nominatim.openstreetmap.org/search?city="+encodeURIComponent(cityPart)+(statePart?"&state="+encodeURIComponent(statePart):"")+"&country=US&addressdetails=1&format=json&limit=1").then(r=>r.json()).catch(()=>[]);
+      if(g.length && g[0].addresstype==="county") g = [];
+    }
+    if(!g.length){
+      g = await fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&countrycodes=us&addressdetails=1&format=json&limit=1").then(r=>r.json()).catch(()=>[]);
+      if(g.length && g[0].addresstype==="county") g = [];
+    }
+    if(!g.length) throw new Error("city not found");
+    const a = g[0].address||{};
+    const cityName = a.city||a.town||a.village||a.municipality||q.split(",")[0].trim();
+    // prefer the ZIP at the city's center point (reverse geocode) over the
+    // boundary relation's own postcode tag — SLO's boundary says 93410,
+    // but downtown reverse-geocodes to 93401, which is the useful one.
+    let pc = "";
+    try{ const rv = await fetch("https://nominatim.openstreetmap.org/reverse?lat="+g[0].lat+"&lon="+g[0].lon+"&format=json&addressdetails=1").then(r=>r.json()); pc = ((rv.address||{}).postcode||"").slice(0,5); }catch(e){}
+    if(!/^\d{5}$/.test(pc)) pc = (a.postcode||"").slice(0,5);
+    if(/^\d{5}$/.test(pc)){
+      state.zip = pc; state.liveKeys = null; state.nearest = null;
+      await lookupZip(pc);
+      state.city = cityName; // locals match on the name the user actually typed
+      setZipNote("Showing "+cityName+" — near ZIP "+pc+".");
+      return;
+    }
+    // no ZIP derivable — go in on the city name alone (locals join by city match)
+    const lat = +g[0].lat, lon = +g[0].lon;
+    let res; try{ res = await googlePlaces(lat, lon); }catch(e){ res = await overpassPlaces(lat, lon); }
+    state.zip = "";
+    applyLive("", {keys:res.keys, nearest:res.nearest, total:res.total, city:cityName, src:"city"});
+    setZipNote("Showing "+cityName+" — chains + locals near there.");
+  }catch(e){
+    state.liveKeys = null; state.nearest = null;
+    setZipNote("Couldn't find \""+q+"\" — check the spelling, or try its ZIP.");
   }
 }
 
@@ -10282,19 +10328,25 @@ function drawHistory(){
 }
 $("clearHist").onclick=()=>{ try{localStorage.removeItem("gr_history");}catch(e){} drawHistory(); };
 
-/* ---- ZIP input ---- */
+/* ---- ZIP / city input ---- */
 let zipTimer=null;
 $("zip").addEventListener("input",e=>{
-  const z=e.target.value.replace(/\D/g,"").slice(0,5);
-  e.target.value=z;
+  const v=e.target.value.trim();
   clearTimeout(zipTimer);
-  if(z.length===5){
-    state.zip=z; state.liveKeys=null; state.nearest=null;
-    setZipNote("Finding fast food near "+z+"…");
-    zipTimer=setTimeout(()=>lookupZip(z), 500);
+  if(/^\d{5}$/.test(v)){
+    state.zip=v; state.liveKeys=null; state.nearest=null;
+    setZipNote("Finding fast food near "+v+"…");
+    zipTimer=setTimeout(()=>lookupZip(v), 500);
+  } else if(/[a-zA-Z]{2,}/.test(v) && !/^\d+$/.test(v)){
+    state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
+    setZipNote("Looking up "+v+"…");
+    zipTimer=setTimeout(()=>lookupCity(v), 800);
+  } else if(/^\d{1,4}$/.test(v)){
+    state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
+    setZipNote("Keep typing the ZIP — or type a city name instead, like Pismo Beach, CA.");
   } else {
     state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
-    setZipNote("Type any US ZIP — the app finds the fast food near it. No ZIP = all "+CHAIN_KEYS.length+" chains.");
+    setZipNote("Type a ZIP or a city — the app finds the fast food near it. Blank = all "+CHAIN_KEYS.length+" chains.");
   }
 });
 
