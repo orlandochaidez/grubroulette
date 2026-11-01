@@ -155,7 +155,7 @@
   <div class="panel">
     <h3>Where you at</h3>
     <input class="zip" id="zip" placeholder="ZIP code or city, state">
-    <div class="zipnote" id="zipnote">Type a ZIP or a city (like Pismo Beach, CA) — the app finds the fast food near it. Blank = all chains.</div>
+    <div class="zipnote" id="zipnote">Type a ZIP or a city — the app finds the fast food near it. Blank = all chains.</div>
   </div>
 
   <button id="feedme">FEED ME</button>
@@ -15812,7 +15812,7 @@ $("zip").addEventListener("input",e=>{
     zipTimer=setTimeout(()=>lookupCity(v), 800);
   } else if(/^\d{1,4}$/.test(v)){
     state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
-    setZipNote("Keep typing the ZIP — or type a city name instead, like Pismo Beach, CA.");
+    setZipNote("Keep typing the ZIP — or type a city name instead.");
   } else {
     state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
     setZipNote("Type a ZIP or a city — the app finds the fast food near it. Blank = all "+CHAIN_KEYS.length+" chains.");
