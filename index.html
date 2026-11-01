@@ -220,6 +220,7 @@
   </div>
 
   <h4>Special</h4>
+  <div class="tglrow"><span>Locals only<small>hometown spots, no chains</small></span><button class="tgl" id="tglLocals">OFF</button></div>
   <div class="tglrow"><span>Ballin' on a Budget<small>only 120+ calories per $</small></span><button class="tgl" id="tglBallin">OFF</button></div>
   <div class="tglrow"><span>Under $10, for sure<small>hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
   <div class="tglrow"><span>Sweet Tooth<small>desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
@@ -10059,7 +10060,7 @@ function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.c
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null,
-  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false } };
+  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false } };
 
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
 const cals  = items => items.reduce((s,i)=>s+i.c*(i.qty||1),0);
@@ -10191,6 +10192,10 @@ function availableChains(){
     const lk=[...(LOCAL_BY_ZIP[state.zip]||[]), ...((state.city&&LOCAL_BY_CITY[state.city.toLowerCase()])||[])];
     lk.forEach(k=>{ if(!base.includes(k)) base.push(k); });
   }
+  if(state.filters.localsOnly){
+    const loc=base.filter(k=>{ const co=chainObj(k); return co && co.local; });
+    if(loc.length) base=loc; // no mapped locals for this area yet — fall back to the full pool rather than dead-end the roll
+  }
   if(!(state.filters.sweet || state.filters.cats.includes("sweets"))){
     const withMain=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").length; });
     if(withMain.length) base=withMain;
@@ -10314,9 +10319,10 @@ $("catRow").querySelectorAll(".chip").forEach(ch=>{
 function wireToggle(id, key){
   $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?"ON":"OFF"; updateSummary(); };
 }
-wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering");
+wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly");
 function updateSummary(){
   const F=state.filters, parts=[];
+  if(F.localsOnly) parts.push("Locals only");
   if(F.maxPrice>0) parts.push("max $"+F.maxPrice);
   if(F.under10) parts.push("under $10 for sure");
   if(F.cal!=="any") parts.push({light:"under 600 cal", regular:"600–1100 cal", feast:"1100+ cal"}[F.cal]);
