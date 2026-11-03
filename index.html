@@ -116,6 +116,24 @@
   .deal .roll{margin-left:auto; background:var(--acc); color:#fff; border:none; border-radius:8px; padding:6px 12px; font-weight:800; font-size:12.5px; cursor:pointer;}
   .locbar{padding:7px 16px; font-size:12.5px; color:var(--muted); background:var(--card2); display:none;}
   .locbar.show{display:block;}
+  /* Language toggle — fixed top-right pill, mirrors the top-left hamburger */
+  #langBtn{position:fixed; top:16px; right:16px; z-index:35; display:flex; gap:2px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:999px; padding:5px 7px; cursor:pointer; font-size:12px; font-weight:800; color:var(--muted); box-shadow:0 4px 14px rgba(0,0,0,.18);}
+  #langBtn .lg{padding:2px 7px; border-radius:999px; line-height:1.2;}
+  #langBtn .lg.on{background:var(--acc); color:#fff;}
+  /* Map button on the result card + map panel (mirrors the deals panel pattern) */
+  #rMapRow{display:none; background:var(--card2); padding:2px 16px 10px;}
+  #rMapRow.show{display:block;}
+  .mapbtn{background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; cursor:pointer;}
+  .mapbtn:active{transform:scale(.97);}
+  #mapOverlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;}
+  #mapOverlay.open{display:block;}
+  #mapPanel{position:fixed; top:0; left:0; height:100%; width:340px; max-width:92vw; background:var(--card); border-right:1px solid var(--line); z-index:70; padding:18px; transform:translateX(-105%); transition:transform .25s ease; overflow-y:auto; box-sizing:border-box;}
+  #mapPanel.open{transform:translateX(0);}
+  #mapClose{background:var(--card2); border:1px solid var(--line); color:var(--ink); border-radius:10px; width:38px; height:38px; font-size:16px; cursor:pointer;}
+  #mapAddr{font-size:13px; color:var(--muted); margin-top:8px;}
+  #mapFrameWrap{margin-top:12px;}
+  #mapFrame{width:100%; height:300px; border:0; border-radius:12px; background:var(--card2); display:block;}
+  .maplink{display:block; text-align:center; text-decoration:none; margin-top:10px; flex:none;}
   @media (min-width:760px){
     #burgerBtn{position:fixed; top:18px; left:18px; z-index:35;}
     .topbar{justify-content:center;}
@@ -158,9 +176,10 @@
       <div class="topspace"></div>
     </div>
   </header>
+  <button id="langBtn" type="button" aria-label="Language / Idioma"><span class="lg on">EN</span><span class="lg">ES</span></button>
 
   <div class="panel">
-    <h3>Where you at</h3>
+    <h3 id="whereAt">Where you at</h3>
     <input class="zip" id="zip" placeholder="ZIP code or city, state">
     <div class="zipnote" id="zipnote">Type a ZIP or a city — the app finds the fast food near it. Blank = all chains.</div>
   </div>
@@ -171,12 +190,13 @@
   <div id="result">
     <div class="chainbar" id="rChain"></div>
     <div class="locbar" id="rLoc"></div>
+    <div id="rMapRow"><button class="mapbtn" id="btnMap" type="button">📍 Map</button></div>
     <div class="rbody">
       <div id="rItems"></div>
       <div class="totals">
-        <div class="stat"><b id="rPrice"></b><span>est. total</span></div>
-        <div class="stat"><b id="rCal"></b><span>est. calories</span></div>
-        <div class="stat"><b id="rVal"></b><span>cal / dollar</span></div>
+        <div class="stat"><b id="rPrice"></b><span id="statTotal">est. total</span></div>
+        <div class="stat"><b id="rCal"></b><span id="statCal">est. calories</span></div>
+        <div class="stat"><b id="rVal"></b><span id="statVal">cal / dollar</span></div>
       </div>
       <div class="actions">
         <button class="btn" id="btnAgain">🎲 Roll again</button>
@@ -187,18 +207,18 @@
   <div id="history"></div>
 
   <footer>
-    Live ZIP lookup via Google Places (OpenStreetMap backup). Combos are generated for fun from estimated menu data.<br>
-    Prices &amp; calories are rough estimates and vary by location.<br>
+    <span id="footLine1">Live ZIP lookup via Google Places (OpenStreetMap backup). Combos are generated for fun from estimated menu data.</span><br>
+    <span id="footLine2">Prices &amp; calories are rough estimates and vary by location.</span><br>
     <span class="clearlink" id="clearHist">clear history</span>
   </footer>
 </div>
 <div id="drawerOverlay"></div>
 <aside id="drawer">
-  <div class="dhead"><b>Filters</b><button id="drawerClose">✕</button></div>
+  <div class="dhead"><b id="drawerTitle">Filters</b><button id="drawerClose">✕</button></div>
   <button class="btn" id="dealsBtn" style="width:100%; margin-top:14px;">Today's Deals</button>
-  <div style="font-size:11px; color:var(--muted); margin-top:6px; text-align:center;">Bakersfield-checked · fresh drop daily ~7:20am</div>
+  <div id="dealsCaption" style="font-size:11px; color:var(--muted); margin-top:6px; text-align:center;">Bakersfield-checked · fresh drop daily ~7:20am</div>
 
-  <h4>Max price</h4>
+  <h4 id="hMaxPrice">Max price</h4>
   <div class="row" id="priceRow">
     <div class="chip on" data-v="0">Any</div>
     <div class="chip" data-v="6">$6</div>
@@ -207,7 +227,7 @@
     <div class="chip" data-v="25">$25</div>
   </div>
 
-  <h4>Calories</h4>
+  <h4 id="hCalories">Calories</h4>
   <div class="row" id="calRow">
     <div class="chip on" data-v="any">Any</div>
     <div class="chip" data-v="light">Under 600</div>
@@ -215,7 +235,7 @@
     <div class="chip" data-v="feast">1100+</div>
   </div>
 
-  <h4>Categories</h4>
+  <h4 id="hCategories">Categories</h4>
   <div class="row" id="catRow">
     <div class="chip cat" data-v="burgers">Burgers</div>
     <div class="chip cat" data-v="chicken">Chicken</div>
@@ -226,22 +246,30 @@
     <div class="chip cat" data-v="sweets">Sweets &amp; Desserts</div>
   </div>
 
-  <h4>Special</h4>
-  <div class="tglrow"><span>Locals only<small>hometown spots, no chains</small></span><button class="tgl" id="tglLocals">OFF</button></div>
-  <div class="tglrow"><span>Ballin' on a Budget<small>only 120+ calories per $</small></span><button class="tgl" id="tglBallin">OFF</button></div>
-  <div class="tglrow"><span>Under $10, for sure<small>hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
-  <div class="tglrow"><span>Sweet Tooth<small>desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
-  <div class="tglrow"><span>Catering<small>feed a crew: bulk order</small></span><button class="tgl" id="tglCatering">OFF</button></div>
+  <h4 id="hSpecial">Special</h4>
+  <div class="tglrow"><span><span id="lblLocals">Locals only</span><small id="subLocals">hometown spots, no chains</small></span><button class="tgl" id="tglLocals">OFF</button></div>
+  <div class="tglrow"><span><span id="lblBallin">Ballin' on a Budget</span><small id="subBallin">only 120+ calories per $</small></span><button class="tgl" id="tglBallin">OFF</button></div>
+  <div class="tglrow"><span><span id="lblUnder10">Under $10, for sure</span><small id="subUnder10">hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
+  <div class="tglrow"><span><span id="lblSweet">Sweet Tooth</span><small id="subSweet">desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
+  <div class="tglrow"><span><span id="lblCatering">Catering</span><small id="subCatering">feed a crew: bulk order</small></span><button class="tgl" id="tglCatering">OFF</button></div>
 
   <button class="btn" id="drawerDone" style="width:100%; margin-top:18px;">Done</button>
-  <div class="dnote">Filters apply to your next roll. The chain lock is parked here for a future version.</div>
+  <div class="dnote" id="drawerNote">Filters apply to your next roll. The chain lock is parked here for a future version.</div>
 </aside>
 <div id="dealsOverlay"></div>
 <aside id="dealsPanel">
-  <div class="dhead"><b>Today's Deals</b><button id="dealsClose">✕</button></div>
+  <div class="dhead"><b id="dealsTitle">Today's Deals</b><button id="dealsClose">✕</button></div>
   <div id="dealsDate" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
-  <div id="dealsList"><p style="color:var(--muted); font-size:14px;">Loading today's drop…</p></div>
-  <div style="font-size:11.5px; color:var(--muted); margin-top:16px; line-height:1.5;">Every deal is verified for a Bakersfield location in the morning drop. Tap <b>Roll this</b> and GrubRoulette builds you a combo from that chain on the spot.</div>
+  <div id="dealsList"><p id="dealsLoading" style="color:var(--muted); font-size:14px;">Loading today's drop…</p></div>
+  <div id="dealsFoot" style="font-size:11.5px; color:var(--muted); margin-top:16px; line-height:1.5;">Every deal is verified for a Bakersfield location in the morning drop. Tap <b>Roll this</b> and GrubRoulette builds you a combo from that chain on the spot.</div>
+</aside>
+<div id="mapOverlay"></div>
+<aside id="mapPanel">
+  <div class="dhead"><b id="mapName"></b><button id="mapClose" aria-label="Close">✕</button></div>
+  <div id="mapAddr"></div>
+  <div id="mapFrameWrap" style="display:none;"><iframe id="mapFrame" title="Map" loading="lazy"></iframe></div>
+  <a class="btn maplink" id="mapDir" href="#" target="_blank" rel="noopener">Directions</a>
+  <a class="btn maplink" id="mapGgl" href="#" target="_blank" rel="noopener">Open in Google Maps</a>
 </aside>
 
 <script>
@@ -604,6 +632,9 @@ function chainKeyFromBrand(brand, name){
   return null;
 }
 function setZipNote(t){ $("zipnote").textContent=t; }
+/* last rendered zip note, kept as (key, params) so a language switch can re-render it */
+let lastNote=null, noteIsBlank=false;
+function setZipNoteKey(key, params){ lastNote={key:key, params:params||{}}; noteIsBlank=false; setZipNote(t(key, params)); }
 function distMi(lat1, lon1, lat2, lon2){
   const R=3958.8, dLa=(lat2-lat1)*Math.PI/180, dLo=(lon2-lon1)*Math.PI/180;
   const a=Math.pow(Math.sin(dLa/2),2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.pow(Math.sin(dLo/2),2);
@@ -625,7 +656,7 @@ function placesFromElements(elements, qlat, qlon){
     const d = distMi(qlat, qlon, lat, lon);
     const addr = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ") || null;
     const cur = nearest[k];
-    if(!cur || d<cur.dist) nearest[k]={name:t.name||CHAINS[k].name, addr, dist:Math.round(d*10)/10};
+    if(!cur || d<cur.dist) nearest[k]={name:t.name||CHAINS[k].name, addr, dist:Math.round(d*10)/10, lat, lon};
   }
   return {keys:[...keys], total, nearest};
 }
@@ -657,7 +688,7 @@ function placesFromGoogle(places, qlat, qlon){
     const d = distMi(qlat, qlon, p.lat, p.lon);
     const addr = p.address ? (p.address.split(",")[0].trim() || null) : null;
     const cur = nearest[k];
-    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10};
+    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10, lat:p.lat, lon:p.lon};
   }
   return {keys:[...keys], total, nearest};
 }
@@ -672,6 +703,7 @@ function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
   state.city = rec.city || "";
+  lastNote = null; noteIsBlank = true;
   setZipNote("");
 }
 async function lookupZip(zip){
@@ -679,7 +711,7 @@ async function lookupZip(zip){
     const c = JSON.parse(localStorage.getItem("gr_zipcache3")||"{}");
     if (c[zip] && Date.now()-c[zip].t < 7*24*3600*1000){ applyLive(zip, c[zip]); return; }
   }catch(e){}
-  setZipNote("Finding fast food near "+zip+"…");
+  setZipNoteKey("noteFinding", {x:zip});
   try{
     const g = await fetch("https://nominatim.openstreetmap.org/search?postalcode="+zip+"&country=US&format=json&limit=1").then(r=>r.json());
     if(!g.length) throw new Error("zip not found");
@@ -693,14 +725,14 @@ async function lookupZip(zip){
     applyLive(zip, rec);
   }catch(e){
     state.liveKeys = null; state.nearest = null;
-    if (ZIP_CHAINS[zip]) setZipNote("Live lookup hiccup — using saved test data for "+zip+".");
-    else setZipNote("Live lookup hiccup for "+zip+" — showing all chains.");
+    if (ZIP_CHAINS[zip]) setZipNoteKey("noteHiccupSaved", {zip:zip});
+    else setZipNoteKey("noteHiccupAll", {zip:zip});
   }
 }
 
 /* ---- city-name lookup: resolve "City, ST" to its ZIP, then reuse the ZIP flow ---- */
 async function lookupCity(q){
-  setZipNote("Finding fast food near "+q+"…");
+  setZipNoteKey("noteFinding", {x:q});
   try{
     // split "City, ST" / "City ST" into parts for a structured search first —
     // free-form search alone matches San Luis Obispo COUNTY before the city.
@@ -729,7 +761,7 @@ async function lookupCity(q){
       state.zip = pc; state.liveKeys = null; state.nearest = null;
       await lookupZip(pc);
       state.city = cityName; // locals match on the name the user actually typed
-      setZipNote("Showing "+cityName+" — near ZIP "+pc+".");
+      setZipNoteKey("noteShowingZip", {city:cityName, zip:pc});
       return;
     }
     // no ZIP derivable — go in on the city name alone (locals join by city match)
@@ -737,10 +769,10 @@ async function lookupCity(q){
     let res; try{ res = await googlePlaces(lat, lon); }catch(e){ res = await overpassPlaces(lat, lon); }
     state.zip = "";
     applyLive("", {keys:res.keys, nearest:res.nearest, total:res.total, city:cityName, src:"city"});
-    setZipNote("Showing "+cityName+" — chains + locals near there.");
+    setZipNoteKey("noteShowingCity", {city:cityName});
   }catch(e){
     state.liveKeys = null; state.nearest = null;
-    setZipNote("Couldn't find \""+q+"\" — check the spelling, or try its ZIP.");
+    setZipNoteKey("noteNotFound", {q:q});
   }
 }
 
@@ -758,6 +790,180 @@ const CATEGORIES = {
   pizza:["dominos","pizzahut","littlecaesars"],
 };
 const CAT_LABELS = {burgers:"Burgers", chicken:"Chicken", mexican:"Mexican", sandwiches:"Sandwiches & Subs", asian:"Asian", pizza:"Pizza", sweets:"Sweets & Desserts"};
+const CAT_LABELS_ES = {burgers:"Hamburguesas", chicken:"Pollo", mexican:"Mexicana", sandwiches:"Sándwiches", asian:"Asiática", pizza:"Pizza", sweets:"Postres", tacos:"Tacos", diner:"Cafetería", bbq:"Barbacoa"};
+function catLabel(c){ return (LANG==="es" ? CAT_LABELS_ES[c] : CAT_LABELS[c]) || CAT_LABELS[c] || c; }
+
+/* ================= I18N (EN / Mexican Spanish) =================
+   Every user-visible UI string lives in STRINGS and renders through t().
+   Restaurant names, item names, addresses and deals data are NEVER translated. */
+let LANG = "en";
+function resolveLang(stored, nav){
+  if(stored==="en" || stored==="es") return stored;
+  if(nav && String(nav).toLowerCase().indexOf("es")===0) return "es";
+  return "en";
+}
+const STRINGS = {
+en:{
+  whereAt:"Where you at",
+  zipPlaceholder:"ZIP code or city, state",
+  noteDefaultPlain:"Type a ZIP or a city — the app finds the fast food near it. Blank = all chains.",
+  noteDefault:"Type a ZIP or a city — the app finds the fast food near it. Blank = all {n} chains.",
+  noteFinding:"Finding fast food near {x}…",
+  noteLooking:"Looking up {x}…",
+  noteKeepTyping:"Keep typing the ZIP — or type a city name instead.",
+  noteHiccupSaved:"Live lookup hiccup — using saved test data for {zip}.",
+  noteHiccupAll:"Live lookup hiccup for {zip} — showing all chains.",
+  noteShowingZip:"Showing {city} — near ZIP {zip}.",
+  noteShowingCity:"Showing {city} — chains + locals near there.",
+  noteNotFound:"Couldn't find \"{q}\" — check the spelling, or try its ZIP.",
+  feedMe:"FEED ME",
+  statTotal:"est. total",
+  statCal:"est. calories",
+  statVal:"cal / dollar",
+  rollAgain:"🎲 Roll again",
+  localPick:" · local pick",
+  findIt:"Find it: ",
+  nearest:"Nearest: ",
+  rightHere:"right here",
+  distAway:"{d} mi away",
+  notListed:"Not listed",
+  historyTitle:"History",
+  clearHistory:"clear history",
+  footLine1:"Live ZIP lookup via Google Places (OpenStreetMap backup). Combos are generated for fun from estimated menu data.",
+  footLine2:"Prices & calories are rough estimates and vary by location.",
+  filtersTitle:"Filters",
+  openFilters:"Open filters",
+  todaysDeals:"Today's Deals",
+  dealsCaption:"Bakersfield-checked · fresh drop daily ~7:20am",
+  maxPrice:"Max price",
+  caloriesTitle:"Calories",
+  anyChip:"Any",
+  calLight:"Under 600",
+  categoriesTitle:"Categories",
+  specialTitle:"Special",
+  localsOnly:"Locals only",
+  localsOnlySub:"hometown spots, no chains",
+  ballin:"Ballin' on a Budget",
+  ballinSub:"only 120+ calories per $",
+  under10:"Under $10, for sure",
+  under10Sub:"hard cap, no exceptions",
+  sweetTooth:"Sweet Tooth",
+  sweetToothSub:"desserts & sweet drinks only",
+  catering:"Catering",
+  cateringSub:"feed a crew: bulk order",
+  done:"Done",
+  drawerNote:"Filters apply to your next roll. The chain lock is parked here for a future version.",
+  on:"ON",
+  off:"OFF",
+  filtersOn:"Filters on: ",
+  summaryMax:"max ${n}",
+  summaryUnder10:"under $10 for sure",
+  summaryCalLight:"under 600 cal",
+  summaryCalRegular:"600–1100 cal",
+  summaryCalFeast:"1100+ cal",
+  dealsLoading:"Loading today's drop…",
+  dropPrefix:"Drop: ",
+  dropStale:" · today's drop lands ~7:20am",
+  dealsEmpty:"No deals posted yet — the drop lands ~7:20am PT.",
+  dealsError:"Couldn't load today's deals — check back after the 7:20am drop.",
+  appOnly:"App only",
+  endsLabel:"Ends ",
+  rollThis:"Roll this",
+  dealsFoot:"Every deal is verified for a Bakersfield location in the morning drop. Tap Roll this and GrubRoulette builds you a combo from that chain on the spot.",
+  mapBtn:"📍 Map",
+  mapDirections:"Directions",
+  mapOpenGoogle:"Open in Google Maps",
+  closeLabel:"Close",
+  waterMod:"free at most places if you ask nicely",
+  wdSmall:"Bored?",
+  wdBold:"Try What Do",
+  wdAria:"Bored? Try What Do"
+},
+es:{
+  whereAt:"¿Dónde andas?",
+  zipPlaceholder:"Código postal o ciudad, estado",
+  noteDefaultPlain:"Escribe un código postal o una ciudad — la app encuentra la comida rápida cerca. En blanco = todas las cadenas.",
+  noteDefault:"Escribe un código postal o una ciudad — la app encuentra la comida rápida cerca. En blanco = las {n} cadenas.",
+  noteFinding:"Buscando comida rápida cerca de {x}…",
+  noteLooking:"Buscando {x}…",
+  noteKeepTyping:"Sigue escribiendo el código postal — o escribe el nombre de una ciudad.",
+  noteHiccupSaved:"Falla en la búsqueda en vivo — usando datos guardados de {zip}.",
+  noteHiccupAll:"Falla en la búsqueda en vivo para {zip} — mostrando todas las cadenas.",
+  noteShowingZip:"Mostrando {city} — cerca del código postal {zip}.",
+  noteShowingCity:"Mostrando {city} — cadenas y lugares locales cerca de ahí.",
+  noteNotFound:"No se encontró \"{q}\" — revisa la ortografía o prueba con su código postal.",
+  feedMe:"¡A COMER!",
+  statTotal:"total est.",
+  statCal:"calorías est.",
+  statVal:"cal / dólar",
+  rollAgain:"🎲 Girar de nuevo",
+  localPick:" · lugar local",
+  findIt:"Está en: ",
+  nearest:"El más cercano: ",
+  rightHere:"aquí mismo",
+  distAway:"a {d} mi de distancia",
+  notListed:"Sin precio",
+  historyTitle:"Historial",
+  clearHistory:"borrar historial",
+  footLine1:"Búsqueda en vivo por código postal con Google Places (respaldo de OpenStreetMap). Los combos se generan por diversión con datos estimados de menús.",
+  footLine2:"Los precios y las calorías son estimados y varían según la ubicación.",
+  filtersTitle:"Filtros",
+  openFilters:"Abrir filtros",
+  todaysDeals:"Ofertas de hoy",
+  dealsCaption:"Verificado en Bakersfield · ofertas nuevas cada día ~7:20am",
+  maxPrice:"Precio máximo",
+  caloriesTitle:"Calorías",
+  anyChip:"Sin límite",
+  calLight:"Menos de 600",
+  categoriesTitle:"Categorías",
+  specialTitle:"Especial",
+  localsOnly:"Solo locales",
+  localsOnlySub:"lugares de la zona, nada de cadenas",
+  ballin:"A lo grande sin gastar",
+  ballinSub:"solo más de 120 calorías por $",
+  under10:"Menos de $10, seguro",
+  under10Sub:"tope fijo, sin excepciones",
+  sweetTooth:"Antojo dulce",
+  sweetToothSub:"solo postres y bebidas dulces",
+  catering:"Banquetes",
+  cateringSub:"para todo el equipo: pedido grande",
+  done:"Listo",
+  drawerNote:"Los filtros aplican en tu próxima tirada. El candado de cadena queda para una versión futura.",
+  on:"SÍ",
+  off:"NO",
+  filtersOn:"Filtros activos: ",
+  summaryMax:"máx. ${n}",
+  summaryUnder10:"menos de $10 seguro",
+  summaryCalLight:"menos de 600 cal",
+  summaryCalRegular:"600–1100 cal",
+  summaryCalFeast:"1100+ cal",
+  dealsLoading:"Cargando las ofertas de hoy…",
+  dropPrefix:"Ofertas del ",
+  dropStale:" · las de hoy llegan ~7:20am",
+  dealsEmpty:"Todavía no hay ofertas — llegan ~7:20am PT.",
+  dealsError:"No se pudieron cargar las ofertas de hoy — vuelve después de las 7:20am.",
+  appOnly:"Solo en la app",
+  endsLabel:"Termina ",
+  rollThis:"¡Gíralo!",
+  dealsFoot:"Cada oferta se verifica en una ubicación de Bakersfield en la publicación de la mañana. Toca ¡Gíralo! y GrubRoulette te arma un combo de esa cadena al momento.",
+  mapBtn:"📍 Mapa",
+  mapDirections:"Cómo llegar",
+  mapOpenGoogle:"Abrir en Google Maps",
+  closeLabel:"Cerrar",
+  waterMod:"gratis en la mayoría de los lugares si lo pides amablemente",
+  wdSmall:"¿Aburrido?",
+  wdBold:"Prueba What Do",
+  wdAria:"¿Aburrido? Prueba What Do"
+}};
+function t(key, params){
+  let s = (STRINGS[LANG] && STRINGS[LANG][key]) || STRINGS.en[key] || key;
+  if(params) for(const k in params) s = s.split("{"+k+"}").join(String(params[k]));
+  return s;
+}
+function dispMod(item){ // the free Water cup's note is UI-ish; everything else's mod text is menu data
+  if(item && item.n==="Water cup" && item.mod===STRINGS.en.waterMod) return t("waterMod");
+  return item ? item.mod : null;
+}
 
 /* ================= LOCAL SPOTS (hand-added places) =================
    One entry per place:
@@ -27090,7 +27296,7 @@ function buildLocalChains(spots){
     if(!s.items || !s.items.length) return; // real menus only — no items, no rolls
     const tpl=GENERIC_MENUS[s.cat];
     const key="local_"+idx;
-    chains[key]={ name:s.name, color:s.color||"#8a5a2b", local:true, addr:s.addr||"", cats:tpl?tpl.cats:[], items:s.items };
+    chains[key]={ name:s.name, color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items };
     (s.zips||[]).forEach(z=>{ (byZip[z]=byZip[z]||[]).push(key); });
     if(s.city) (byCity[s.city.toLowerCase()]=byCity[s.city.toLowerCase()]||[]).push(key);
   });
@@ -27099,7 +27305,7 @@ function buildLocalChains(spots){
 function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.chains; LOCAL_BY_ZIP=r.byZip; LOCAL_BY_CITY=r.byCity; }
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
-const state = { zip:"", liveKeys:null, nearest:null, lastKey:null,
+const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false } };
 
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
@@ -27276,24 +27482,36 @@ function roll(){
 }
 
 function render(chain, combo, chainKey){
-  $("rChain").textContent=chain.name + (chain.local ? " · local pick" : "");
+  $("rChain").textContent=chain.name + (chain.local ? t("localPick") : "");
   $("rChain").style.background=chain.color;
   const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
   if(chain.local && chain.addr){
-    $("rLoc").textContent = "Find it: " + chain.addr;
+    $("rLoc").textContent = t("findIt") + chain.addr;
     $("rLoc").classList.add("show");
   } else if(loc){
-    $("rLoc").textContent = "Nearest: " + (loc.addr ? loc.addr : loc.name) + " · " + (loc.dist<0.1 ? "right here" : loc.dist.toFixed(1)+" mi away");
+    $("rLoc").textContent = t("nearest") + (loc.addr ? loc.addr : loc.name) + " · " + (loc.dist<0.1 ? t("rightHere") : t("distAway", {d:loc.dist.toFixed(1)}));
     $("rLoc").classList.add("show");
   } else {
     $("rLoc").textContent = "";
     $("rLoc").classList.remove("show");
   }
+  /* map button + the place the map panel will show (coords when the live result carries them) */
+  if(chain.local && chain.addr){
+    state.lastPlace = { name:chain.name, addr:chain.addr, city:chain.city||"", st:"", zip:(chain.zips&&chain.zips[0])||"", lat:null, lon:null };
+    $("rMapRow").classList.add("show");
+  } else if(loc){
+    state.lastPlace = { name:chain.name, addr:loc.addr||"", city:state.city||"", st:"", zip:state.zip||"", lat:(loc.lat!=null?loc.lat:null), lon:(loc.lon!=null?loc.lon:null) };
+    $("rMapRow").classList.add("show");
+  } else {
+    state.lastPlace = null;
+    $("rMapRow").classList.remove("show");
+  }
+  state.lastRender = { chain:chain, combo:combo, chainKey:chainKey };
   $("rItems").innerHTML=combo.items.map(i=>
-    `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${i.mod}</span>`:""}</div>${i.p==null?"":`<div class="pr">${(i.p*(i.qty||1)).toFixed(2)}</div>`}</div>`
+    `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${dispMod(i)}</span>`:""}</div>${i.p==null?"":`<div class="pr">${(i.p*(i.qty||1)).toFixed(2)}</div>`}</div>`
   ).join("");
   const p=price(combo.items), c=cals(combo.items);
-  $("rPrice").textContent = p===null ? "Not listed" : "$"+p.toFixed(2);
+  $("rPrice").textContent = p===null ? t("notListed") : "$"+p.toFixed(2);
   $("rCal").textContent=c.toLocaleString();
   $("rVal").textContent = p===null ? "—" : (p>0 ? Math.round(c/p) : "∞");
   $("result").classList.add("show");
@@ -27313,7 +27531,7 @@ let histOpen=false;
 function drawHistory(){
   let h=[]; try{ h=JSON.parse(localStorage.getItem("gr_history")||"[]"); }catch(e){}
   if(!h.length){ $("history").innerHTML=""; $("history").classList.remove("open"); return; }
-  $("history").innerHTML = "<div class='panel'><div class='histhead' id='histHead'><h3>History</h3><span class='histtog'>"+(histOpen?"[−]":"[+]")+"</span></div>"
+  $("history").innerHTML = "<div class='panel'><div class='histhead' id='histHead'><h3>"+t("historyTitle")+"</h3><span class='histtog'>"+(histOpen?"[−]":"[+]")+"</span></div>"
     + "<div class='histbody'>"+h.map(x=>
         `<div class="hitem"><b>${x.chain}</b> <span class="hz">${x.price?" · $"+x.price:""} · ${x.t}</span><br><span class="hz">${x.items}</span></div>`
       ).join("")+"</div></div>";
@@ -27329,18 +27547,18 @@ $("zip").addEventListener("input",e=>{
   clearTimeout(zipTimer);
   if(/^\d{5}$/.test(v)){
     state.zip=v; state.liveKeys=null; state.nearest=null;
-    setZipNote("Finding fast food near "+v+"…");
+    setZipNoteKey("noteFinding", {x:v});
     zipTimer=setTimeout(()=>lookupZip(v), 500);
   } else if(/[a-zA-Z]{2,}/.test(v) && !/^\d+$/.test(v)){
     state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
-    setZipNote("Looking up "+v+"…");
+    setZipNoteKey("noteLooking", {x:v});
     zipTimer=setTimeout(()=>lookupCity(v), 800);
   } else if(/^\d{1,4}$/.test(v)){
     state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
-    setZipNote("Keep typing the ZIP — or type a city name instead.");
+    setZipNoteKey("noteKeepTyping");
   } else {
     state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
-    setZipNote("Type a ZIP or a city — the app finds the fast food near it. Blank = all "+CHAIN_KEYS.length+" chains.");
+    setZipNoteKey("noteDefault", {n:CHAIN_KEYS.length});
   }
 });
 
@@ -27363,20 +27581,20 @@ $("catRow").querySelectorAll(".chip").forEach(ch=>{
     if(i>=0) state.filters.cats.splice(i,1); else state.filters.cats.push(v); updateSummary(); };
 });
 function wireToggle(id, key){
-  $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?"ON":"OFF"; updateSummary(); };
+  $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); updateSummary(); };
 }
 wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly");
 function updateSummary(){
   const F=state.filters, parts=[];
-  if(F.localsOnly) parts.push("Locals only");
-  if(F.maxPrice>0) parts.push("max $"+F.maxPrice);
-  if(F.under10) parts.push("under $10 for sure");
-  if(F.cal!=="any") parts.push({light:"under 600 cal", regular:"600–1100 cal", feast:"1100+ cal"}[F.cal]);
-  F.cats.forEach(c=>parts.push(CAT_LABELS[c]));
-  if(F.ballin) parts.push("Ballin' on a Budget");
-  if(F.sweet) parts.push("Sweet Tooth");
-  if(F.catering) parts.push("Catering");
-  $("filterSummary").textContent = parts.length ? "Filters on: "+parts.join(" · ") : "";
+  if(F.localsOnly) parts.push(t("localsOnly"));
+  if(F.maxPrice>0) parts.push(t("summaryMax", {n:F.maxPrice}));
+  if(F.under10) parts.push(t("summaryUnder10"));
+  if(F.cal!=="any") parts.push(t({light:"summaryCalLight", regular:"summaryCalRegular", feast:"summaryCalFeast"}[F.cal]));
+  F.cats.forEach(c=>parts.push(catLabel(c)));
+  if(F.ballin) parts.push(t("ballin"));
+  if(F.sweet) parts.push(t("sweetTooth"));
+  if(F.catering) parts.push(t("catering"));
+  $("filterSummary").textContent = parts.length ? t("filtersOn")+parts.join(" · ") : "";
 }
 
 $("feedme").onclick=roll;
@@ -27405,21 +27623,119 @@ async function loadDeals(){
     const data=await r.json(); dealsLoaded=true;
     const today=new Date(); const iso=today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
     const d=new Date(data.date+"T12:00:00");
-    dateEl.textContent="Drop: "+d.toLocaleDateString(undefined,{weekday:"long", month:"long", day:"numeric"})+(data.date!==iso?" · today's drop lands ~7:20am":"");
-    if(!data.deals || !data.deals.length){ list.innerHTML='<p style="color:var(--muted); font-size:14px;">No deals posted yet — the drop lands ~7:20am PT.</p>'; return; }
+    dateEl.textContent=t("dropPrefix")+d.toLocaleDateString(LANG==="es"?"es-MX":"en-US",{weekday:"long", month:"long", day:"numeric"})+(data.date!==iso?t("dropStale"):"");
+    if(!data.deals || !data.deals.length){ list.innerHTML='<p style="color:var(--muted); font-size:14px;">'+t("dealsEmpty")+'</p>'; return; }
     list.innerHTML=data.deals.map(deal=>{
       const canRoll=deal.chainKey && chainObj(deal.chainKey);
       return '<div class="deal"><b>'+deal.chain+'</b><p>'+deal.text+'</p><div class="meta">'
-        +(deal.appOnly?'<span class="pill app">App only</span>':"")
-        +(deal.ends?'<span class="pill">Ends '+deal.ends+'</span>':"")
-        +(canRoll?'<button class="roll" data-ck="'+deal.chainKey+'">Roll this</button>':"")
+        +(deal.appOnly?'<span class="pill app">'+t("appOnly")+'</span>':"")
+        +(deal.ends?'<span class="pill">'+t("endsLabel")+deal.ends+'</span>':"")
+        +(canRoll?'<button class="roll" data-ck="'+deal.chainKey+'">'+t("rollThis")+'</button>':"")
         +'</div></div>';
     }).join("");
     list.querySelectorAll(".roll").forEach(b=>b.addEventListener("click", ()=>{ closeDeals(); closeDrawer(); rollChain(b.dataset.ck); }));
   }catch(e){
-    list.innerHTML='<p style="color:var(--muted); font-size:14px;">Couldn\'t load today\'s deals — check back after the 7:20am drop.</p>';
+    list.innerHTML='<p style="color:var(--muted); font-size:14px;">'+t("dealsError")+'</p>';
   }
 }
+
+/* ---- Map panel (mirrors the deals panel pattern) ---- */
+const mapPanel=$("mapPanel"), mapOverlay=$("mapOverlay");
+let MAPCACHE={}; try{ MAPCACHE=JSON.parse(localStorage.getItem("gr_mapcache")||"{}")||{}; }catch(e){ MAPCACHE={}; }
+function mapCacheKey(p){ return ((p&&p.name)||"")+"|"+((p&&p.addr)||""); }
+function mapCacheGet(k){ return MAPCACHE[k]||null; }
+function mapCacheSet(k, v){ MAPCACHE[k]=v; try{ localStorage.setItem("gr_mapcache", JSON.stringify(MAPCACHE)); }catch(e){} }
+function placeQuery(p){ return [p.name, p.addr, p.city, p.st, p.zip].filter(Boolean).join(", "); }
+function gmapsDirUrl(p){ return "https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(placeQuery(p)); }
+function gmapsSearchUrl(p){ return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(placeQuery(p)); }
+function osmEmbedUrl(lat, lon){ const d=0.008; return "https://www.openstreetmap.org/export/embed.html?bbox="+(+lon-d)+","+(+lat-d)+","+(+lon+d)+","+(+lat+d)+"&layer=mapnik&marker="+lat+","+lon; }
+async function geocodePlace(p){
+  let g=[];
+  try{ g=await fetch("https://nominatim.openstreetmap.org/search?street="+encodeURIComponent(p.addr||"")+"&city="+encodeURIComponent(p.city||"")+"&country=US&format=json&limit=1").then(r=>r.json()); }catch(e){ g=[]; }
+  if(!g || !g.length){
+    try{ g=await fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(placeQuery(p))+"&countrycodes=us&format=json&limit=1").then(r=>r.json()); }catch(e){ g=[]; }
+  }
+  if(g && g.length) return {lat:+g[0].lat, lon:+g[0].lon};
+  return null;
+}
+function fillMapPanel(){
+  const p=state.lastPlace; if(!p) return;
+  $("mapName").textContent=p.name;
+  $("mapAddr").textContent=[p.addr, p.city, p.zip].filter(Boolean).join(", ");
+  $("mapDir").textContent=t("mapDirections");
+  $("mapGgl").textContent=t("mapOpenGoogle");
+  $("mapDir").href=gmapsDirUrl(p);
+  $("mapGgl").href=gmapsSearchUrl(p);
+  $("mapClose").setAttribute("aria-label", t("closeLabel"));
+}
+async function openMap(){
+  const p=state.lastPlace; if(!p) return;
+  fillMapPanel();
+  mapPanel.classList.add("open"); mapOverlay.classList.add("open");
+  let lat=(p.lat!=null?p.lat:null), lon=(p.lon!=null?p.lon:null);
+  if(lat===null || lon===null){ const hit=mapCacheGet(mapCacheKey(p)); if(hit){ lat=hit.lat; lon=hit.lon; } }
+  if((lat===null || lon===null) && p.addr){ const g=await geocodePlace(p); if(g){ lat=g.lat; lon=g.lon; mapCacheSet(mapCacheKey(p), g); } }
+  if(lat!==null && lon!==null){ $("mapFrame").src=osmEmbedUrl(lat, lon); $("mapFrameWrap").style.display="block"; }
+  else { $("mapFrameWrap").style.display="none"; }
+}
+function closeMap(){ mapPanel.classList.remove("open"); mapOverlay.classList.remove("open"); }
+$("btnMap").onclick=openMap;
+$("mapClose").onclick=closeMap;
+mapOverlay.onclick=closeMap;
+
+/* ---- Language: apply the current language to everything on screen ---- */
+function applyLang(){
+  document.documentElement.lang = LANG;
+  const S=(id, v)=>{ const el=$(id); if(el) el.textContent=v; };
+  S("whereAt", t("whereAt"));
+  $("zip").placeholder = t("zipPlaceholder");
+  if(lastNote) setZipNote(t(lastNote.key, lastNote.params));
+  else if(!noteIsBlank) setZipNote(t("noteDefaultPlain"));
+  S("feedme", t("feedMe"));
+  S("statTotal", t("statTotal")); S("statCal", t("statCal")); S("statVal", t("statVal"));
+  S("btnAgain", t("rollAgain"));
+  S("btnMap", t("mapBtn"));
+  S("footLine1", t("footLine1")); S("footLine2", t("footLine2")); S("clearHist", t("clearHistory"));
+  S("drawerTitle", t("filtersTitle"));
+  $("burgerBtn").setAttribute("aria-label", t("openFilters"));
+  S("dealsBtn", t("todaysDeals")); S("dealsCaption", t("dealsCaption"));
+  S("hMaxPrice", t("maxPrice")); S("hCalories", t("caloriesTitle")); S("hCategories", t("categoriesTitle")); S("hSpecial", t("specialTitle"));
+  S("lblLocals", t("localsOnly")); S("subLocals", t("localsOnlySub"));
+  S("lblBallin", t("ballin")); S("subBallin", t("ballinSub"));
+  S("lblUnder10", t("under10")); S("subUnder10", t("under10Sub"));
+  S("lblSweet", t("sweetTooth")); S("subSweet", t("sweetToothSub"));
+  S("lblCatering", t("catering")); S("subCatering", t("cateringSub"));
+  S("drawerDone", t("done")); S("drawerNote", t("drawerNote"));
+  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglUnder10","under10"],["tglSweet","sweet"],["tglCatering","catering"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
+  const anyChip=$("priceRow").querySelector('.chip[data-v="0"]'); if(anyChip) anyChip.textContent=t("anyChip");
+  const calAny=$("calRow").querySelector('.chip[data-v="any"]'); if(calAny) calAny.textContent=t("anyChip");
+  const calLight=$("calRow").querySelector('.chip[data-v="light"]'); if(calLight) calLight.textContent=t("calLight");
+  $("catRow").querySelectorAll(".chip").forEach(ch=>{ ch.textContent=catLabel(ch.dataset.v); });
+  S("dealsTitle", t("todaysDeals")); S("dealsFoot", t("dealsFoot"));
+  const dl=$("dealsLoading"); if(dl) dl.textContent=t("dealsLoading");
+  S("wdSmall", t("wdSmall")); S("wdBold", t("wdBold"));
+  $("whatdoLink").setAttribute("aria-label", t("wdAria"));
+  $("langBtn").innerHTML = '<span class="lg'+(LANG==="en"?" on":"")+'">EN</span><span class="lg'+(LANG==="es"?" on":"")+'">ES</span>';
+  updateSummary();
+  drawHistory();
+  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combo, state.lastRender.chainKey);
+  if(mapPanel.classList.contains("open")) fillMapPanel();
+  if(dealsPanel.classList.contains("open")){ dealsLoaded=false; $("dealsList").innerHTML='<p id="dealsLoading" style="color:var(--muted); font-size:14px;">'+t("dealsLoading")+'</p>'; loadDeals(); }
+}
+function setLang(l){
+  if(l!=="es") l="en";
+  LANG=l; state.lang=l;
+  try{ localStorage.setItem("gr_lang", l); }catch(e){}
+  applyLang();
+}
+$("langBtn").onclick=()=>setLang(LANG==="es"?"en":"es");
+(function initLang(){
+  let stored=null;
+  try{ stored=localStorage.getItem("gr_lang"); }catch(e){}
+  LANG=resolveLang(stored, (typeof navigator!=="undefined" && navigator) ? navigator.language : "");
+  state.lang=LANG;
+  applyLang();
+})();
 </script>
 <a id="whatdoLink" href="https://orlandochaidez.com/what-do/" target="_blank" rel="noopener" aria-label="Bored? Try What Do">
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -27430,7 +27746,7 @@ async function loadDeals(){
     <circle cx="8.4" cy="15.6" r="1.35" fill="currentColor" stroke="none"/>
     <circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/>
   </svg>
-  <span class="wT"><small>Bored?</small><b>Try What Do</b></span>
+  <span class="wT"><small id="wdSmall">Bored?</small><b id="wdBold">Try What Do</b></span>
 </a>
 </body>
 </html>
