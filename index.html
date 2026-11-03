@@ -32956,8 +32956,10 @@ function availableChains(){
   else if(state.zip && ZIP_CHAINS[state.zip]) base=[...ZIP_CHAINS[state.zip]];
   else base=[...CHAIN_KEYS];
   if(state.zip){
-    const lk=[...(LOCAL_BY_ZIP[state.zip]||[]), ...((state.city&&LOCAL_BY_CITY[state.city.toLowerCase()])||[])];
-    lk.forEach(k=>{ if(!base.includes(k)) base.push(k); });
+    // same area resolution as Browse (browseLocalKeys): ZIP ∪ the ZIP's pack
+    // city ∪ state.city — a ZIP search whose state.city never resolved must
+    // still roll the whole city's locals, not just the ZIP-literal ones
+    browseLocalKeys().forEach(k=>{ if(!base.includes(k)) base.push(k); });
   }
   if(state.filters.localsOnly){
     const loc=base.filter(k=>{ const co=chainObj(k); return co && co.local; });
@@ -33240,12 +33242,29 @@ function browseCatLabel(c){
   return catLabel(c);
 }
 function browseChipLabel(ch){ return ch==="all" ? t("browseAll") : browseCatLabel(ch); }
+// Pack cities this search area resolves to: the resolved state.city, PLUS the
+// city of every local matched by the bare ZIP. state.city can be empty on the
+// ZIP-search fallback path (area = {zip, city:""}) — without the ZIP-derived
+// cities the area shrinks to just the locals whose zips[] literally contain
+// the searched ZIP (93304 alone would show only 4 Bakersfield spots).
+function areaCities(){
+  const cs=new Set();
+  if(state.city) cs.add(state.city.toLowerCase());
+  if(state.zip) (LOCAL_BY_ZIP[state.zip]||[]).forEach(k=>{ const co=LOCAL_CHAINS[k]; if(co && co.city) cs.add(co.city.toLowerCase()); });
+  return cs;
+}
+// The single pack city a ZIP-only area resolves to ("" when the ZIP's locals
+// span several cities or none) — used for the area label.
+function browseResolvedCity(){
+  const cs=new Set();
+  if(state.zip) (LOCAL_BY_ZIP[state.zip]||[]).forEach(k=>{ const co=LOCAL_CHAINS[k]; if(co && co.city) cs.add(co.city); });
+  return cs.size===1 ? [...cs][0] : "";
+}
 function browseLocalKeys(){
   const seen=new Set(), ks=[];
   const add=k=>{ if(!seen.has(k) && LOCAL_CHAINS[k]){ seen.add(k); ks.push(k); } };
   if(state.zip) (LOCAL_BY_ZIP[state.zip]||[]).forEach(add);
-  const city=(state.city||"").toLowerCase();
-  if(city) (LOCAL_BY_CITY[city]||[]).forEach(add);
+  areaCities().forEach(c=>{ (LOCAL_BY_CITY[c]||[]).forEach(add); });
   return ks;
 }
 function browseSet(){
@@ -33274,7 +33293,7 @@ function browseCounts(set){
   for(const s of set) for(const ch of BROWSE_CHIPS){ if(ch!=="all" && spotInChip(s,ch)) c[ch]++; }
   return c;
 }
-function browseAreaLabel(){ const a=state.area; return a ? (a.city || a.zip || "") : ""; }
+function browseAreaLabel(){ const a=state.area; return a ? (a.city || browseResolvedCity() || a.zip || "") : ""; }
 function syncBrowseBtn(){
   const btn=$("browseBtn"); if(!btn) return;
   const lbl=browseAreaLabel();
