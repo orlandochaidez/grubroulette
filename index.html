@@ -215,6 +215,7 @@
   <div id="result">
     <div class="chainbar" id="rChain"></div>
     <div class="locbar" id="rLoc"></div>
+    <div class="locbar" id="rHours"></div>
     <div id="rMapRow"><button class="mapbtn" id="btnMap" type="button">📍 Map</button></div>
     <div class="rbody">
       <div id="rItems"></div>
@@ -278,6 +279,8 @@
   <div class="tglrow"><span><span id="lblUnder10">Under $10, for sure</span><small id="subUnder10">hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
   <div class="tglrow"><span><span id="lblSweet">Sweet Tooth</span><small id="subSweet">desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
   <div class="tglrow"><span><span id="lblCatering">Catering</span><small id="subCatering">feed a crew: bulk order</small></span><button class="tgl" id="tglCatering">OFF</button></div>
+  <div class="tglrow"><span><span id="lblOpenNow">Open now</span><small id="subOpenNow">only places open right now</small></span><button class="tgl" id="tglOpenNow">OFF</button></div>
+  <div class="tglrow"><span><span id="lblOpenLate">Open late</span><small id="subOpenLate">open past midnight (or 24 hours)</small></span><button class="tgl" id="tglOpenLate">OFF</button></div>
 
   <button class="btn" id="drawerDone" style="width:100%; margin-top:18px;">Done</button>
   <div class="dnote" id="drawerNote">Filters apply to your next roll. The chain lock is parked here for a future version.</div>
@@ -912,6 +915,13 @@ en:{
   sweetToothSub:"desserts & sweet drinks only",
   catering:"Catering",
   cateringSub:"feed a crew: bulk order",
+  openNow:"Open now",
+  openNowSub:"only places open right now",
+  openLate:"Open late",
+  openLateSub:"open past midnight (or 24 hours)",
+  openNowTil:"Open now · til {t}",
+  closedOpens:"Closed · opens {t}",
+  open24:"Open 24 hours",
   done:"Done",
   drawerNote:"Filters apply to your next roll. The chain lock is parked here for a future version.",
   on:"ON",
@@ -999,6 +1009,13 @@ es:{
   sweetToothSub:"solo postres y bebidas dulces",
   catering:"Banquetes",
   cateringSub:"para todo el equipo: pedido grande",
+  openNow:"Abierto ahora",
+  openNowSub:"solo lugares abiertos ahorita",
+  openLate:"Abierto hasta tarde",
+  openLateSub:"abierto después de medianoche (o 24 horas)",
+  openNowTil:"Abierto ahora · cierra a las {t}",
+  closedOpens:"Cerrado · abre a las {t}",
+  open24:"Abierto 24 horas",
   done:"Listo",
   drawerNote:"Los filtros aplican en tu próxima tirada. El candado de cadena queda para una versión futura.",
   on:"SÍ",
@@ -1057,7 +1074,7 @@ function dispMod(item){ // the free Water cup's note is UI-ish; everything else'
    items yet stay listed here as a to-research queue and never appear in rolls.
    cat only maps the spot to filter categories now (burgers|tacos|chicken|pizza|sandwiches|diner|bbq). */
 const LOCAL_SPOTS = [
- {
+  {
   "name": "Burger Hut",
   "zips": [
    "93301"
@@ -1191,6 +1208,13 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   10.5,
+   15
+  ],
+  "closedDays": [
+   0
   ]
  },
  {
@@ -1317,7 +1341,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Happy Jack's Pie 'n Burger",
   "zips": [
    "93301"
@@ -1533,6 +1557,14 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   7,
+   14
+  ],
+  "closedDays": [
+   0,
+   6
   ]
  },
  {
@@ -1665,7 +1697,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Juicy Burger",
   "zips": [
    "93301"
@@ -1805,6 +1837,13 @@ const LOCAL_SPOTS = [
      "cheesy"
     ]
    }
+  ],
+  "hrs": [
+   10.5,
+   20.5
+  ],
+  "closedDays": [
+   0
   ]
  },
  {
@@ -1946,7 +1985,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Fresco Mexican Grill",
   "zips": [
    "93301",
@@ -2084,6 +2123,10 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   6,
+   24
   ]
  },
  {
@@ -2559,7 +2602,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "24th Street Cafe",
   "zips": [
    "93301"
@@ -2693,9 +2736,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   6,
+   14.5
   ]
  },
- {
+  {
   "name": "King's Drive In",
   "zips": [
    "93305"
@@ -2777,6 +2824,10 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   10,
+   22
   ]
  },
  {
@@ -17148,7 +17199,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Super Tom's Burgers",
   "zips": [
    "93312"
@@ -17310,9 +17361,13 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   8,
+   21
   ]
  },
- {
+  {
   "name": "Frosty King",
   "zips": [
    "93312"
@@ -17472,6 +17527,10 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   8,
+   21
   ]
  },
  {
@@ -18816,7 +18875,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Victor's Mexican Grill",
   "zips": [
    "93312"
@@ -18964,6 +19023,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   7.5,
+   21
+  ],
+  "closedDays": [
+   0
   ]
  },
  {
@@ -19271,7 +19337,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Dewar's Candy Shop",
   "zips": [
    "93304"
@@ -19423,6 +19489,10 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   10,
+   21
   ]
  },
  {
@@ -19905,7 +19975,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Magoo's Pizza",
   "zips": [
    "93309"
@@ -20040,9 +20110,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   21
   ]
  },
- {
+  {
   "name": "El Sombrero",
   "zips": [
    "93301"
@@ -20150,6 +20224,13 @@ const LOCAL_SPOTS = [
      "cheesy"
     ]
    }
+  ],
+  "hrs": [
+   10.5,
+   20
+  ],
+  "closedDays": [
+   0
   ]
  },
  {
@@ -20405,7 +20486,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Pizza & Wings-River Market",
   "zips": [
    "93305"
@@ -20565,6 +20646,10 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   5,
+   24
   ]
  },
  {
@@ -20746,7 +20831,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Tony's Pizza",
   "zips": [
    "93309"
@@ -20907,9 +20992,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   10,
+   21
   ]
  },
- {
+  {
   "name": "Tony's Pizza",
   "zips": [
    "93308"
@@ -21070,6 +21159,10 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   10,
+   21
   ]
  },
  {
@@ -21217,7 +21310,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Heartbeat Pizza",
   "zips": [
    "93309"
@@ -21385,9 +21478,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   10,
+   22
   ]
  },
- {
+  {
   "name": "Rusty's Pizza",
   "zips": [
    "93308"
@@ -21520,11 +21617,15 @@ const LOCAL_SPOTS = [
    {
     "c": 150,
     "n": "Soft Drink",
-    "p": 2.0,
+    "p": 2,
     "t": [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   23
   ]
  },
  {
@@ -21964,7 +22065,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Santa Barbara Pizza & Chicken",
   "zips": [
    "93306"
@@ -22054,6 +22155,15 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   24
+  ],
+  "closedDays": [
+   0,
+   1,
+   2
   ]
  },
  {
@@ -22356,7 +22466,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Amigo's Pizza",
   "zips": [
    "93307"
@@ -22532,6 +22642,10 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   22
   ]
  },
  {
@@ -22885,7 +22999,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Santa Barbara Pizza & Chicken",
   "zips": [
    "93306"
@@ -22982,6 +23096,10 @@ const LOCAL_SPOTS = [
      "side"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   24
   ]
  },
  {
@@ -23361,7 +23479,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Pizza Factory",
   "zips": [
    "93313"
@@ -23476,6 +23594,10 @@ const LOCAL_SPOTS = [
      "side"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   21
   ]
  },
  {
@@ -32729,7 +32851,7 @@ const LOCAL_SPOTS = [
   ]
  }
 ,
- {
+  {
   "name": "Red House BBQ",
   "zips": [
    "93561"
@@ -32870,9 +32992,17 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   20
+  ],
+  "closedDays": [
+   1,
+   2
   ]
  },
- {
+  {
   "name": "Kohnen's Country Bakery",
   "zips": [
    "93561"
@@ -33028,6 +33158,14 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   6,
+   18
+  ],
+  "closedDays": [
+   3,
+   4
   ]
  },
  {
@@ -33180,7 +33318,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Buelna's Grill",
   "zips": [
    "93561"
@@ -33309,6 +33447,13 @@ const LOCAL_SPOTS = [
      "veg"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   20
+  ],
+  "closedDays": [
+   0
   ]
  },
  {
@@ -33945,7 +34090,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "El Rio Restaurant",
   "zips": [
    "93238"
@@ -34058,9 +34203,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   20
   ]
  },
- {
+  {
   "name": "La Bikina Mexican Restaurant",
   "zips": [
    "93240"
@@ -34185,6 +34334,10 @@ const LOCAL_SPOTS = [
      "veg"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   20
   ]
  },
  {
@@ -34518,7 +34671,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Bear Mountain Pizza",
   "zips": [
    "93203"
@@ -34623,10 +34776,14 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   10.5,
+   21
   ]
  }
 ,
- {
+  {
   "name": "Burger Spot",
   "zips": [
    "93561"
@@ -34786,9 +34943,13 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   10.5,
+   21
   ]
  },
- {
+  {
   "name": "Burger Broz Inc.",
   "zips": [
    "93561"
@@ -34841,9 +35002,13 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   7,
+   22
   ]
  },
- {
+  {
   "name": "Taco Samich",
   "zips": [
    "93561"
@@ -34974,6 +35139,13 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ],
+  "hrs": [
+   9,
+   20
+  ],
+  "closedDays": [
+   0
   ]
  },
  {
@@ -35619,7 +35791,7 @@ const LOCAL_SPOTS = [
    }
   ]
  },
- {
+  {
   "name": "Pizza Factory",
   "zips": [
    "93240"
@@ -35785,6 +35957,10 @@ const LOCAL_SPOTS = [
      "sweet"
     ]
    }
+  ],
+  "hrs": [
+   11,
+   21
   ]
  },
  {
@@ -35868,6 +36044,179 @@ const LOCAL_SPOTS = [
      "drink"
     ]
    }
+  ]
+ }
+,
+ {
+  "name": "El Fogón",
+  "zips": [
+   "93241"
+  ],
+  "city": "Lamont",
+  "addr": "8105 Paradise Rd",
+  "cat": "pizza",
+  "items": [
+   {
+    "c": 1500,
+    "n": "12'' Small 1 Topping Pizza",
+    "p": 6.42,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 1600,
+    "n": "12'' Small 1/2 Pepperoni 1/2 Combo",
+    "p": 7.5,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 2200,
+    "n": "16'' Medium 1 Topping Pizza",
+    "p": 9.64,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 2300,
+    "n": "16'' Medium 1/2 Pepperoni 1/2 Combo",
+    "p": 11.79,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 3400,
+    "n": "20'' Large 1 Topping Pizza",
+    "p": 19.29,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 3500,
+    "n": "20'' Large 1/2 Pepperoni 1/2 Combo",
+    "p": 22.51,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 4600,
+    "n": "24'' Extra Large 1 Topping Pizza",
+    "p": 23.58,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 4800,
+    "n": "24'' Extra Large 1/2 Pepperoni 1/2 Combo",
+    "p": 27.87,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 850,
+    "n": "Calzone",
+    "p": 5.99,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "c": 950,
+    "n": "Calzone Combo",
+    "p": 6.99,
+    "t": [
+     "main",
+     "cheesy"
+    ]
+   },
+   {
+    "c": 850,
+    "n": "Breakfast Burrito",
+    "p": 9.99,
+    "t": [
+     "main",
+     "breakfast"
+    ]
+   },
+   {
+    "c": 950,
+    "n": "Burrito",
+    "p": 9.49,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 1100,
+    "n": "Burrito Ahogado / Wet Burrito",
+    "p": 10.99,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 950,
+    "n": "Torta Cubana / Cuban Sandwich",
+    "p": 11.53,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 900,
+    "n": "Torta Chilanga / Chilanga Mexican Sandwich",
+    "p": 10.99,
+    "t": [
+     "main"
+    ]
+   },
+   {
+    "c": 250,
+    "n": "Tacos",
+    "p": 1.88,
+    "t": [
+     "main",
+     "value"
+    ]
+   },
+   {
+    "c": 300,
+    "n": "Tacos de Harina / Flour Tacos",
+    "p": 2.13,
+    "t": [
+     "main",
+     "value"
+    ]
+   },
+   {
+    "c": 550,
+    "n": "6 Piece Wings",
+    "p": 7.5,
+    "t": [
+     "side"
+    ]
+   },
+   {
+    "c": 1100,
+    "n": "12 Piece Wings",
+    "p": 15,
+    "t": [
+     "side"
+    ]
+   }
+  ],
+  "hrs": [
+   4,
+   22
   ]
  }
 ];
@@ -35959,7 +36308,7 @@ function buildLocalChains(spots){
     if(!s.items || !s.items.length) return; // real menus only — no items, no rolls
     const tpl=GENERIC_MENUS[s.cat];
     const key="local_"+idx;
-    chains[key]={ name:s.name, cat:s.cat||"", color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items };
+    chains[key]={ name:s.name, cat:s.cat||"", color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items, hrs:s.hrs||null, h24:!!s.h24, closedDays:s.closedDays||null };
     (s.zips||[]).forEach(z=>{ (byZip[z]=byZip[z]||[]).push(key); });
     if(s.city) (byCity[s.city.toLowerCase()]=byCity[s.city.toLowerCase()]||[]).push(key);
   });
@@ -35969,7 +36318,7 @@ function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.c
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, area:null, livePlaces:[],
-  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false } };
+  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
 const cals  = items => items.reduce((s,i)=>s+i.c*(i.qty||1),0);
@@ -36092,6 +36441,58 @@ function buildCatering(ck, chain){
 }
 
 /* ---- which chains can this roll pick from ---- */
+/* ---- open hours (2026-11-03): researched per-local hours; locals only ----
+   Pack data: hrs:[open,close] decimal local hours (close may exceed 24 for
+   past-midnight, e.g. [6,26] = 6 AM-2 AM), h24:true for 24/7, optional
+   closedDays [0=Sun..6=Sat]. No hrs data = unknown (null), never guessed.
+   Timezone derives from the spot's state (all CA packs PT, Youngstown ET). */
+const TZ_BY_STATE = { CA:"America/Los_Angeles", OH:"America/New_York" };
+const GRUB_TEST = { now:null }; // test hook: suite pins the clock here
+function grubNow(){ return GRUB_TEST.now || new Date(); }
+function spotState(co){
+  if(!co) return "CA";
+  if(co.st) return co.st;
+  const z=(co.zips && co.zips[0]) || "";
+  if(/^44/.test(z) || co.city==="Youngstown") return "OH";
+  return "CA";
+}
+function spotTZ(co){ return TZ_BY_STATE[spotState(co)] || "America/Los_Angeles"; }
+const _dtfCache={};
+function localParts(tz, date){
+  let f=_dtfCache[tz];
+  if(!f){ f=new Intl.DateTimeFormat("en-US",{ timeZone:tz, weekday:"short", hour:"numeric", minute:"numeric", hourCycle:"h23" }); _dtfCache[tz]=f; }
+  const parts={}; for(const p of f.formatToParts(date)) parts[p.type]=p.value;
+  const wd={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6}[parts.weekday];
+  let h=+parts.hour; if(h===24) h=0;
+  return { day:wd, hour:h + (+parts.minute)/60 };
+}
+function isOpenAt(co, date){
+  if(!co || (!co.h24 && !co.hrs)) return null; // no hours data = unknown
+  const lp=localParts(spotTZ(co), date || grubNow());
+  const day=lp.day, t=lp.hour, closed=co.closedDays || [];
+  if(co.h24) return !closed.includes(day);
+  const o=co.hrs[0], c=co.hrs[1];
+  if(c>24){ // past-midnight close: evening window is today's; the after-midnight tail is yesterday's
+    if(t>=o) return !closed.includes(day);
+    if(t<c-24) return !closed.includes((day+6)%7);
+    return false;
+  }
+  if(closed.includes(day)) return false;
+  return t>=o && t<c;
+}
+function isOpenLate(co){ return !!(co && (co.h24 || (co.hrs && co.hrs[1]>24))); }
+function fmtHour(h){
+  let hh=((h%24)+24)%24; const H=Math.floor(hh), m=Math.round((hh-H)*60);
+  const ap=H>=12 ? "PM" : "AM"; let h12=H%12; if(h12===0) h12=12;
+  return h12+":"+String(m).padStart(2,"0")+" "+ap;
+}
+function hoursLine(co){
+  if(!co || (!co.h24 && !co.hrs)) return null;
+  const open=isOpenAt(co);
+  if(co.h24) return open ? t("open24") : t("closedOpens", { t:fmtHour(0) });
+  return open ? t("openNowTil", { t:fmtHour(co.hrs[1]) }) : t("closedOpens", { t:fmtHour(co.hrs[0]) });
+}
+
 function availableChains(){
   let base;
   if(state.liveKeys && state.liveKeys.length) base=[...state.liveKeys];
@@ -36122,6 +36523,14 @@ function availableChains(){
   if(state.filters.ballin){
     const eligB=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(valOK); });
     if(eligB.length) base=eligB; // no qualifying main, no Ballin' roll at that spot
+  }
+  if(state.filters.openNow){
+    const open=base.filter(k=>{ const co=chainObj(k); return co && co.local && isOpenAt(co)===true; });
+    if(open.length) base=open; // only locals carry hours data; if none are open right now, fall back rather than dead-end the roll
+  }
+  if(state.filters.openLate){
+    const late=base.filter(k=>{ const co=chainObj(k); return co && co.local && isOpenLate(co); });
+    if(late.length) base=late; // same house pattern: narrow only when something qualifies
   }
   const cats=state.filters.cats.filter(c=>CATEGORIES[c]);
   if(cats.length){
@@ -36160,6 +36569,10 @@ function render(chain, combo, chainKey){
     $("rLoc").textContent = "";
     $("rLoc").classList.remove("show");
   }
+  /* hours line: locals with researched hours show open state right now */
+  const hl = chain.local ? hoursLine(chain) : null;
+  if(hl){ $("rHours").textContent=hl; $("rHours").classList.add("show"); }
+  else { $("rHours").textContent=""; $("rHours").classList.remove("show"); }
   /* map button + the place the map panel will show (coords when the live result carries them) */
   if(chain.local && chain.addr){
     state.lastPlace = { name:chain.name, addr:chain.addr, city:chain.city||"", st:"", zip:(chain.zips&&chain.zips[0])||"", lat:null, lon:null };
@@ -36248,7 +36661,7 @@ $("catRow").querySelectorAll(".chip").forEach(ch=>{
 function wireToggle(id, key){
   $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); updateSummary(); };
 }
-wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly");
+wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
 function updateSummary(){
   const F=state.filters, parts=[];
   if(F.localsOnly) parts.push(t("localsOnly"));
@@ -36257,6 +36670,8 @@ function updateSummary(){
   if(F.cal!=="any") parts.push(t({light:"summaryCalLight", regular:"summaryCalRegular", feast:"summaryCalFeast"}[F.cal]));
   F.cats.forEach(c=>parts.push(catLabel(c)));
   if(F.ballin) parts.push(t("ballin"));
+  if(F.openNow) parts.push(t("openNow"));
+  if(F.openLate) parts.push(t("openLate"));
   if(F.sweet) parts.push(t("sweetTooth"));
   if(F.catering) parts.push(t("catering"));
   $("filterSummary").textContent = parts.length ? t("filtersOn")+parts.join(" · ") : "";
@@ -36570,8 +36985,10 @@ function applyLang(){
   S("lblUnder10", t("under10")); S("subUnder10", t("under10Sub"));
   S("lblSweet", t("sweetTooth")); S("subSweet", t("sweetToothSub"));
   S("lblCatering", t("catering")); S("subCatering", t("cateringSub"));
+  S("lblOpenNow", t("openNow")); S("subOpenNow", t("openNowSub"));
+  S("lblOpenLate", t("openLate")); S("subOpenLate", t("openLateSub"));
   S("drawerDone", t("done")); S("drawerNote", t("drawerNote"));
-  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglUnder10","under10"],["tglSweet","sweet"],["tglCatering","catering"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
+  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglUnder10","under10"],["tglSweet","sweet"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
   const anyChip=$("priceRow").querySelector('.chip[data-v="0"]'); if(anyChip) anyChip.textContent=t("anyChip");
   const calAny=$("calRow").querySelector('.chip[data-v="any"]'); if(calAny) calAny.textContent=t("anyChip");
   const calLight=$("calRow").querySelector('.chip[data-v="light"]'); if(calLight) calLight.textContent=t("calLight");
