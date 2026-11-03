@@ -153,6 +153,9 @@
   .bcard .blab{font-size:11.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--acc2); margin-top:3px;}
   .bcard .baddr{font-size:12.5px; color:var(--muted); margin-top:2px;}
   .bcard .bmeta{font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .bcard .bopen{display:inline-block; font-size:11px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; border-radius:999px; padding:2px 8px; margin-top:5px; border:1px solid var(--line);}
+  .bcard .bopen.on{color:#1d9e50; border-color:#1d9e50;}
+  .bcard .bopen.off{color:var(--acc2); border-color:var(--acc);}
   .bcard .brow2{display:flex; gap:8px; margin-top:9px; align-items:center;}
   .bcard .broll{margin-left:auto; background:var(--acc); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-weight:800; font-size:12.5px; cursor:pointer;}
   .bnote{color:var(--muted); font-size:14px; margin-top:14px;}
@@ -733,11 +736,15 @@ function placesFromGoogle(places, qlat, qlon){
     const k = chainKeyFromBrand(null, p.name);
     if(!k || !CHAINS[k]) continue;
     keys.add(k);
+    // hours-mode fields ride along when the Worker sent them; absent on
+    // base/OSM records -> normalized to null (unknown), never "closed"
+    const hrs={ openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null };
     if(p.lat==null || p.lon==null) continue;
     const d = distMi(qlat, qlon, p.lat, p.lon);
     const addr = p.address ? (p.address.split(",")[0].trim() || null) : null;
     const cur = nearest[k];
-    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10, lat:p.lat, lon:p.lon};
+    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10, lat:p.lat, lon:p.lon, ...hrs};
+    else if(cur.openNow===null && hrs.openNow!==null){ cur.openNow=hrs.openNow; cur.nextClose=hrs.nextClose; cur.nextOpen=hrs.nextOpen; } // keep the closest spot, but adopt hours from a farther twin if the closest has none
   }
   const all=[], seenAll=new Set();
   for (const p of (places||[])){
@@ -745,7 +752,7 @@ function placesFromGoogle(places, qlat, qlon){
     const addr=p.address ? p.address.split(",").slice(0,2).join(",").trim() : "";
     const dk=normalizeBrand(p.name)+"|"+addr;
     if(seenAll.has(dk)) continue; seenAll.add(dk);
-    all.push({name:p.name, addr, type:p.type||"", lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null)});
+    all.push({name:p.name, addr, type:p.type||"", lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null});
   }
   return {keys:[...keys], total, nearest, all};
 }
@@ -756,15 +763,88 @@ async function googlePlaces(lat, lon){
   if(!data.places) throw new Error("bad worker response");
   return placesFromGoogle(data.places, lat, lon);
 }
+/* ---- live hours (2026-11-03): Open now / Open late for live Google places ----
+   Base lookups stay on the free Pro tier (no hours fields). When the Open
+   now / Open late filter is on, a separate hours-mode Worker lookup
+   (Enterprise field currentOpeningHours) fetches openNow/nextClose/nextOpen
+   for the same area, cached 30 min per ZIP (gr_hrscache) because openNow
+   goes stale. Hours merge onto state.nearest (per rollable chain key) and
+   state.livePlaces (per place, for Browse pills). Unknown (Google returned
+   no hours, or the deployed Worker predates hours mode) stays null and is
+   treated honestly: unknown drops out of a narrowed Open-now pool. */
+async function googlePlacesHours(lat, lon){
+  const r = await fetch(GOOGLE_WORKER+"/nearby?lat="+lat+"&lon="+lon+"&hours=1");
+  if(!r.ok) throw new Error("worker "+r.status);
+  const data = await r.json();
+  if(!data.places) throw new Error("bad worker response");
+  return placesFromGoogle(data.places, lat, lon);
+}
+function hoursDataFromRec(res){
+  const byKey={}, byPlace={};
+  for(const k of Object.keys(res.nearest||{})){ const n=res.nearest[k]; byKey[k]={openNow:(n.openNow===true?true:(n.openNow===false?false:null)), nextClose:n.nextClose||null, nextOpen:n.nextOpen||null}; }
+  for(const p of (res.all||[])){ byPlace[normalizeBrand(p.name)+"|"+(p.addr||"")]={openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null}; }
+  return {byKey, byPlace};
+}
+function applyHoursData(hd){
+  if(!hd) return;
+  if(state.nearest) for(const k of Object.keys(state.nearest)){ const h=hd.byKey[k]; if(h){ state.nearest[k].openNow=h.openNow; state.nearest[k].nextClose=h.nextClose; state.nearest[k].nextOpen=h.nextOpen; } }
+  for(const p of (state.livePlaces||[])){ const h=hd.byPlace[normalizeBrand(p.name)+"|"+(p.addr||"")]; if(h){ p.openNow=h.openNow; p.nextClose=h.nextClose; p.nextOpen=h.nextOpen; } }
+  // a roll already on screen gets its hours line; an open Browse re-renders pills
+  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combo, state.lastRender.chainKey);
+  if(typeof browsePanel!=="undefined" && browsePanel.classList.contains("open")) renderBrowse();
+}
+function readHrsCache(zip){
+  try{ const c=JSON.parse(localStorage.getItem("gr_hrscache")||"{}"); const e=c[zip]; if(e && Date.now()-e.t < 30*60*1000) return e; }catch(e){}
+  return null;
+}
+function writeHrsCache(zip, hd){
+  try{ const c=JSON.parse(localStorage.getItem("gr_hrscache")||"{}"); c[zip]={t:Date.now(), byKey:hd.byKey, byPlace:hd.byPlace}; localStorage.setItem("gr_hrscache", JSON.stringify(c)); }catch(e){}
+}
+let hrsFetchFor=""; // in-flight guard: one hours fetch per area at a time
+async function ensureLiveHours(){
+  try{
+    if(!(state.filters.openNow || state.filters.openLate)) return;
+    if(!state.area || !state.zip) return;               // hours mode is ZIP-keyed/cached
+    if(!(state.liveKeys && state.liveKeys.length) && !(state.livePlaces||[]).length) return; // no live search behind this area
+    const zip=state.zip;
+    const hit=readHrsCache(zip);
+    if(hit){ applyHoursData(hit); return; }
+    let lat=(state.searchLat!=null?state.searchLat:null), lon=(state.searchLon!=null?state.searchLon:null);
+    if(lat==null){ // older cached records carry no center: anchor on any known place coord
+      const src=(state.nearest && Object.values(state.nearest).find(n=>n && n.lat!=null)) || (state.livePlaces||[]).find(p=>p && p.lat!=null);
+      if(src){ lat=src.lat; lon=src.lon; }
+    }
+    if(lat==null || lon==null) return;
+    const fk=zip+"|"+lat.toFixed(3)+","+lon.toFixed(3);
+    if(hrsFetchFor===fk) return;
+    hrsFetchFor=fk;
+    try{
+      const res=await googlePlacesHours(lat, lon);
+      const hd=hoursDataFromRec(res);
+      writeHrsCache(zip, hd);
+      if(state.zip===zip) applyHoursData(hd); // area may have changed mid-flight
+    }catch(e){ /* old Worker / offline: hours stay unknown, locals-only Open now keeps working */ }
+    if(hrsFetchFor===fk) hrsFetchFor="";
+  }catch(e){}
+}
 function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
   state.city = rec.city || "";
   state.livePlaces = rec.places || [];
+  state.searchLat = (rec.lat!=null ? rec.lat : null);
+  state.searchLon = (rec.lon!=null ? rec.lon : null);
   state.area = (zip || rec.city) ? { zip: zip||"", city: rec.city||"" } : null;
   lastNote = null; noteIsBlank = true;
   setZipNote("");
   syncBrowseBtn();
+  // hours mode: a fresh (<30 min) hours cache merges instantly; otherwise,
+  // when Open now / Open late is on, fetch the hours-mode record for this area
+  if(zip){
+    const hh=readHrsCache(zip);
+    if(hh) applyHoursData(hh);
+    if(state.filters.openNow || state.filters.openLate) ensureLiveHours();
+  }
 }
 async function lookupZip(zip){
   try{
@@ -780,7 +860,7 @@ async function lookupZip(zip){
     let res, src = "google";
     try{ res = await googlePlaces(lat, lon); }
     catch(e){ src = "osm"; res = await overpassPlaces(lat, lon); }
-    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city, src, places:res.all||[]};
+    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city, src, places:res.all||[], lat, lon};
     try{ const c=JSON.parse(localStorage.getItem("gr_zipcache3")||"{}"); c[zip]=rec; localStorage.setItem("gr_zipcache3",JSON.stringify(c)); }catch(e){}
     applyLive(zip, rec);
   }catch(e){
@@ -831,7 +911,7 @@ async function lookupCity(q){
     const lat = +g[0].lat, lon = +g[0].lon;
     let res; try{ res = await googlePlaces(lat, lon); }catch(e){ res = await overpassPlaces(lat, lon); }
     state.zip = "";
-    applyLive("", {keys:res.keys, nearest:res.nearest, total:res.total, city:cityName, src:"city", places:res.all||[]});
+    applyLive("", {keys:res.keys, nearest:res.nearest, total:res.total, city:cityName, src:"city", places:res.all||[], lat, lon});
     setZipNoteKey("noteShowingCity", {city:cityName});
   }catch(e){
     state.liveKeys = null; state.nearest = null;
@@ -922,6 +1002,7 @@ en:{
   openNowTil:"Open now · til {t}",
   closedOpens:"Closed · opens {t}",
   open24:"Open 24 hours",
+  closedNow:"Closed",
   done:"Done",
   drawerNote:"Filters apply to your next roll. The chain lock is parked here for a future version.",
   on:"ON",
@@ -1016,6 +1097,7 @@ es:{
   openNowTil:"Abierto ahora · cierra a las {t}",
   closedOpens:"Cerrado · abre a las {t}",
   open24:"Abierto 24 horas",
+  closedNow:"Cerrado",
   done:"Listo",
   drawerNote:"Los filtros aplican en tu próxima tirada. El candado de cadena queda para una versión futura.",
   on:"SÍ",
@@ -36317,7 +36399,7 @@ function buildLocalChains(spots){
 function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.chains; LOCAL_BY_ZIP=r.byZip; LOCAL_BY_CITY=r.byCity; }
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
-const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, area:null, livePlaces:[],
+const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
@@ -36460,11 +36542,11 @@ function spotTZ(co){ return TZ_BY_STATE[spotState(co)] || "America/Los_Angeles";
 const _dtfCache={};
 function localParts(tz, date){
   let f=_dtfCache[tz];
-  if(!f){ f=new Intl.DateTimeFormat("en-US",{ timeZone:tz, weekday:"short", hour:"numeric", minute:"numeric", hourCycle:"h23" }); _dtfCache[tz]=f; }
+  if(!f){ f=new Intl.DateTimeFormat("en-US",{ timeZone:tz, weekday:"short", year:"numeric", month:"2-digit", day:"2-digit", hour:"numeric", minute:"numeric", hourCycle:"h23" }); _dtfCache[tz]=f; }
   const parts={}; for(const p of f.formatToParts(date)) parts[p.type]=p.value;
   const wd={Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6}[parts.weekday];
   let h=+parts.hour; if(h===24) h=0;
-  return { day:wd, hour:h + (+parts.minute)/60 };
+  return { day:wd, hour:h + (+parts.minute)/60, dayKey:parts.year+"-"+parts.month+"-"+parts.day };
 }
 function isOpenAt(co, date){
   if(!co || (!co.h24 && !co.hrs)) return null; // no hours data = unknown
@@ -36491,6 +36573,36 @@ function hoursLine(co){
   const open=isOpenAt(co);
   if(co.h24) return open ? t("open24") : t("closedOpens", { t:fmtHour(0) });
   return open ? t("openNowTil", { t:fmtHour(co.hrs[1]) }) : t("closedOpens", { t:fmtHour(co.hrs[0]) });
+}
+/* ---- live-place hours (2026-11-03): Google currentOpeningHours merged onto
+   state.nearest / state.livePlaces by applyHoursData. null = unknown. ---- */
+function liveNearest(k){ return (state.nearest && state.nearest[k]) || null; }
+function liveOpenNow(k){ const n=liveNearest(k); return n ? (n.openNow===true?true:(n.openNow===false?false:null)) : null; }
+function areaTZ(){ return spotTZ({ zips:[state.zip||""], city:state.city||"" }); }
+function liveIsOpenLate(k, date){
+  const n=liveNearest(k);
+  if(!n || n.openNow!==true || !n.nextClose) return false; // only a proven past-midnight close counts — never guessed
+  const tz=areaTZ();
+  const nowD=localParts(tz, date || grubNow()), closeD=localParts(tz, new Date(n.nextClose));
+  return closeD.dayKey > nowD.dayKey; // closes on a later local calendar day = runs past midnight
+}
+function fmtISOInTZ(iso, tz){
+  const lp=localParts(tz, new Date(iso));
+  return fmtHour(lp.hour);
+}
+function liveHoursLine(k){
+  const n=liveNearest(k);
+  if(!n || n.openNow==null) return null;
+  // til/opens times only when the area maps to a known pack timezone; a
+  // generic CA default would lie for out-of-state searches
+  const knownTZ = areaCities().size>0 || /^(93|44)/.test(state.zip||"");
+  const tz=areaTZ();
+  if(n.openNow===true){
+    if(n.nextClose && knownTZ) return t("openNowTil", { t:fmtISOInTZ(n.nextClose, tz) });
+    return t("openNow");
+  }
+  if(n.nextOpen && knownTZ) return t("closedOpens", { t:fmtISOInTZ(n.nextOpen, tz) });
+  return t("closedNow");
 }
 
 function availableChains(){
@@ -36525,11 +36637,17 @@ function availableChains(){
     if(eligB.length) base=eligB; // no qualifying main, no Ballin' roll at that spot
   }
   if(state.filters.openNow){
-    const open=base.filter(k=>{ const co=chainObj(k); return co && co.local && isOpenAt(co)===true; });
-    if(open.length) base=open; // only locals carry hours data; if none are open right now, fall back rather than dead-end the roll
+    // locals qualify on researched hours; live-matched (non-local) keys
+    // qualify only when Google says that location is open right now.
+    // Unknown hours drop out on both sides — if nothing qualifies at all,
+    // fall back rather than dead-end the roll (house pattern).
+    const open=base.filter(k=>{ const co=chainObj(k); if(!co) return false; return co.local ? isOpenAt(co)===true : liveOpenNow(k)===true; });
+    if(open.length) base=open;
   }
   if(state.filters.openLate){
-    const late=base.filter(k=>{ const co=chainObj(k); return co && co.local && isOpenLate(co); });
+    // live places join Open late only with a PROVEN past-midnight close
+    // (currently open + nextClose on a later local day) — never guessed
+    const late=base.filter(k=>{ const co=chainObj(k); if(!co) return false; return co.local ? isOpenLate(co) : liveIsOpenLate(k); });
     if(late.length) base=late; // same house pattern: narrow only when something qualifies
   }
   const cats=state.filters.cats.filter(c=>CATEGORIES[c]);
@@ -36569,8 +36687,9 @@ function render(chain, combo, chainKey){
     $("rLoc").textContent = "";
     $("rLoc").classList.remove("show");
   }
-  /* hours line: locals with researched hours show open state right now */
-  const hl = chain.local ? hoursLine(chain) : null;
+  /* hours line: locals show researched hours; live-matched chains show
+     Google's open state for the matched location when it is known */
+  const hl = chain.local ? hoursLine(chain) : liveHoursLine(chainKey);
   if(hl){ $("rHours").textContent=hl; $("rHours").classList.add("show"); }
   else { $("rHours").textContent=""; $("rHours").classList.remove("show"); }
   /* map button + the place the map panel will show (coords when the live result carries them) */
@@ -36659,7 +36778,7 @@ $("catRow").querySelectorAll(".chip").forEach(ch=>{
     if(i>=0) state.filters.cats.splice(i,1); else state.filters.cats.push(v); updateSummary(); };
 });
 function wireToggle(id, key){
-  $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); updateSummary(); };
+  $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); updateSummary(); if((key==="openNow"||key==="openLate") && state.filters[key]) ensureLiveHours(); };
 }
 wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
 function updateSummary(){
@@ -36835,7 +36954,7 @@ function browseSet(){
     if(!p || !p.name) continue;
     if(localNames.has(normalizeBrand(p.name))) continue; // the local entry wins over its live twin
     const m=liveTypeMap(p.type);
-    out.push({key:null, name:p.name, cat:m.cat||"", addr:p.addr||"", city:"", zips:[], items:null, local:false, sweets:!!m.sweets, lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), typeLabel:humanType(p.type)});
+    out.push({key:null, name:p.name, cat:m.cat||"", addr:p.addr||"", city:"", zips:[], items:null, local:false, sweets:!!m.sweets, lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), typeLabel:humanType(p.type), openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null});
   }
   return out;
 }
@@ -36899,6 +37018,8 @@ function renderBrowse(){
       + (lab ? '<div class="blab">'+escHtml(lab)+'</div>' : "")
       + (s.addr ? '<div class="baddr">'+escHtml(s.addr)+'</div>' : "")
       + (meta ? '<div class="bmeta">'+escHtml(meta)+'</div>' : "")
+      + (!s.local && s.openNow===true ? '<span class="bopen on">'+escHtml(t("openNow"))+'</span>' : "")
+      + (!s.local && s.openNow===false ? '<span class="bopen off">'+escHtml(t("closedNow"))+'</span>' : "")
       + '<div class="brow2"><button type="button" class="mapbtn bmap" data-i="'+i+'">'+t("mapBtn")+'</button>'
       + (s.local ? '<button type="button" class="broll" data-i="'+i+'">'+t("browseRollSpot")+'</button>' : "")
       + '</div></div>';
