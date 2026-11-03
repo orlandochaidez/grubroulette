@@ -134,6 +134,31 @@
   #mapFrameWrap{margin-top:12px;}
   #mapFrame{width:100%; height:300px; border:0; border-radius:12px; background:var(--card2); display:block;}
   .maplink{display:block; text-align:center; text-decoration:none; margin-top:10px; flex:none;}
+  /* Browse panel — area-scoped place list + map (mirrors the deals/map panel pattern) */
+  #browseOverlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:60;}
+  #browseOverlay.open{display:block;}
+  #browsePanel{position:fixed; top:0; left:0; height:100%; width:340px; max-width:92vw; background:var(--card); border-right:1px solid var(--line); z-index:70; padding:18px; transform:translateX(-105%); transition:transform .25s ease; overflow-y:auto; box-sizing:border-box;}
+  #browsePanel.open{transform:translateX(0);}
+  #browseClose{background:var(--card2); border:1px solid var(--line); color:var(--ink); border-radius:10px; width:38px; height:38px; font-size:16px; cursor:pointer;}
+  .bviewrow{display:flex; gap:8px; margin-top:14px;}
+  .bpill{flex:1; padding:8px 4px; border-radius:999px; border:1px solid var(--line); background:var(--card2); color:var(--ink); font-size:13.5px; font-weight:700; cursor:pointer;}
+  .bpill.on{background:#331014; border-color:var(--acc); color:var(--acc2);}
+  #browseChips{display:flex; gap:6px; overflow-x:auto; padding:12px 0 2px; scrollbar-width:none;}
+  #browseChips::-webkit-scrollbar{display:none;}
+  .bchip{flex:none; padding:7px 12px; border-radius:999px; border:1px solid var(--line); background:var(--card2); color:var(--ink); font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;}
+  .bchip small{color:var(--muted); font-weight:700;}
+  .bchip.on{border-color:var(--acc); background:#331014; box-shadow:0 0 0 1px var(--acc);}
+  .bcard{border:1px solid var(--line); background:var(--card2); border-radius:12px; padding:10px 12px; margin-top:10px;}
+  .bcard b{font-size:15px;}
+  .bcard .blab{font-size:11.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--acc2); margin-top:3px;}
+  .bcard .baddr{font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .bcard .bmeta{font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .bcard .brow2{display:flex; gap:8px; margin-top:9px; align-items:center;}
+  .bcard .broll{margin-left:auto; background:var(--acc); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-weight:800; font-size:12.5px; cursor:pointer;}
+  .bnote{color:var(--muted); font-size:14px; margin-top:14px;}
+  #browseMap{height:340px; border-radius:12px; margin-top:12px; overflow:hidden; background:var(--card2);}
+  #browseMap .bnote{padding:2px 12px;}
+  @media (prefers-color-scheme: light){ .bpill.on{background:#fde8eb;} .bchip.on{background:#fde8eb;} }
   @media (min-width:760px){
     #burgerBtn{position:fixed; top:18px; left:18px; z-index:35;}
     .topbar{justify-content:center;}
@@ -217,6 +242,7 @@
   <div class="dhead"><b id="drawerTitle">Filters</b><button id="drawerClose">✕</button></div>
   <button class="btn" id="dealsBtn" style="width:100%; margin-top:14px;">Today's Deals</button>
   <div id="dealsCaption" style="font-size:11px; color:var(--muted); margin-top:6px; text-align:center;">Bakersfield-checked · fresh drop daily ~7:20am</div>
+  <button class="btn" id="browseBtn" style="width:100%; margin-top:14px; display:none;">Browse places</button>
 
   <h4 id="hMaxPrice">Max price</h4>
   <div class="row" id="priceRow">
@@ -270,6 +296,14 @@
   <div id="mapFrameWrap" style="display:none;"><iframe id="mapFrame" title="Map" loading="lazy"></iframe></div>
   <a class="btn maplink" id="mapDir" href="#" target="_blank" rel="noopener">Directions</a>
   <a class="btn maplink" id="mapGgl" href="#" target="_blank" rel="noopener">Open in Google Maps</a>
+</aside>
+<div id="browseOverlay"></div>
+<aside id="browsePanel">
+  <div class="dhead"><b id="browseTitle"></b><button id="browseClose" aria-label="Close">✕</button></div>
+  <div class="bviewrow"><button class="bpill on" id="browseViewList" type="button">List</button><button class="bpill" id="browseViewMap" type="button">Map</button></div>
+  <div id="browseChips"></div>
+  <div id="browseList"></div>
+  <div id="browseMap" style="display:none;"></div>
 </aside>
 
 <script>
@@ -658,7 +692,19 @@ function placesFromElements(elements, qlat, qlon){
     const cur = nearest[k];
     if(!cur || d<cur.dist) nearest[k]={name:t.name||CHAINS[k].name, addr, dist:Math.round(d*10)/10, lat, lon};
   }
-  return {keys:[...keys], total, nearest};
+  const all=[], seenAll=new Set();
+  for (const el of (elements||[])){
+    const t=el.tags||{};
+    const nm=t.name||t.brand; if(!nm) continue;
+    const la = el.lat!=null ? el.lat : (el.center ? el.center.lat : null);
+    const lo = el.lon!=null ? el.lon : (el.center ? el.center.lon : null);
+    const street=[t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ");
+    const addr=[street, t["addr:city"]||""].filter(Boolean).join(", ");
+    const dk=normalizeBrand(nm)+"|"+addr;
+    if(seenAll.has(dk)) continue; seenAll.add(dk);
+    all.push({name:nm, addr, type:t.cuisine||"", lat:la, lon:lo});
+  }
+  return {keys:[...keys], total, nearest, all};
 }
 const OVERPASS_ENDPOINTS = ["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter"];
 async function overpassPlaces(lat, lon){
@@ -690,7 +736,15 @@ function placesFromGoogle(places, qlat, qlon){
     const cur = nearest[k];
     if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10, lat:p.lat, lon:p.lon};
   }
-  return {keys:[...keys], total, nearest};
+  const all=[], seenAll=new Set();
+  for (const p of (places||[])){
+    if(!p.name) continue;
+    const addr=p.address ? p.address.split(",").slice(0,2).join(",").trim() : "";
+    const dk=normalizeBrand(p.name)+"|"+addr;
+    if(seenAll.has(dk)) continue; seenAll.add(dk);
+    all.push({name:p.name, addr, type:p.type||"", lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null)});
+  }
+  return {keys:[...keys], total, nearest, all};
 }
 async function googlePlaces(lat, lon){
   const r = await fetch(GOOGLE_WORKER+"/nearby?lat="+lat+"&lon="+lon);
@@ -703,8 +757,11 @@ function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
   state.city = rec.city || "";
+  state.livePlaces = rec.places || [];
+  state.area = (zip || rec.city) ? { zip: zip||"", city: rec.city||"" } : null;
   lastNote = null; noteIsBlank = true;
   setZipNote("");
+  syncBrowseBtn();
 }
 async function lookupZip(zip){
   try{
@@ -720,11 +777,12 @@ async function lookupZip(zip){
     let res, src = "google";
     try{ res = await googlePlaces(lat, lon); }
     catch(e){ src = "osm"; res = await overpassPlaces(lat, lon); }
-    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city, src};
+    const rec = {t:Date.now(), keys:res.keys, nearest:res.nearest, total:res.total, city, src, places:res.all||[]};
     try{ const c=JSON.parse(localStorage.getItem("gr_zipcache3")||"{}"); c[zip]=rec; localStorage.setItem("gr_zipcache3",JSON.stringify(c)); }catch(e){}
     applyLive(zip, rec);
   }catch(e){
     state.liveKeys = null; state.nearest = null;
+    state.livePlaces = []; state.area = {zip:zip, city:""}; syncBrowseBtn();
     if (ZIP_CHAINS[zip]) setZipNoteKey("noteHiccupSaved", {zip:zip});
     else setZipNoteKey("noteHiccupAll", {zip:zip});
   }
@@ -761,6 +819,8 @@ async function lookupCity(q){
       state.zip = pc; state.liveKeys = null; state.nearest = null;
       await lookupZip(pc);
       state.city = cityName; // locals match on the name the user actually typed
+      if(state.area) state.area.city = cityName;
+      syncBrowseBtn();
       setZipNoteKey("noteShowingZip", {city:cityName, zip:pc});
       return;
     }
@@ -768,10 +828,11 @@ async function lookupCity(q){
     const lat = +g[0].lat, lon = +g[0].lon;
     let res; try{ res = await googlePlaces(lat, lon); }catch(e){ res = await overpassPlaces(lat, lon); }
     state.zip = "";
-    applyLive("", {keys:res.keys, nearest:res.nearest, total:res.total, city:cityName, src:"city"});
+    applyLive("", {keys:res.keys, nearest:res.nearest, total:res.total, city:cityName, src:"city", places:res.all||[]});
     setZipNoteKey("noteShowingCity", {city:cityName});
   }catch(e){
     state.liveKeys = null; state.nearest = null;
+    state.area = null; state.livePlaces = []; syncBrowseBtn();
     setZipNoteKey("noteNotFound", {q:q});
   }
 }
@@ -789,7 +850,7 @@ const CATEGORIES = {
   asian:["panda"],
   pizza:["dominos","pizzahut","littlecaesars"],
 };
-const CAT_LABELS = {burgers:"Burgers", chicken:"Chicken", mexican:"Mexican", sandwiches:"Sandwiches & Subs", asian:"Asian", pizza:"Pizza", sweets:"Sweets & Desserts"};
+const CAT_LABELS = {burgers:"Burgers", chicken:"Chicken", mexican:"Mexican", sandwiches:"Sandwiches & Subs", asian:"Asian", pizza:"Pizza", sweets:"Sweets & Desserts", tacos:"Tacos", diner:"Diner", bbq:"BBQ"};
 const CAT_LABELS_ES = {burgers:"Hamburguesas", chicken:"Pollo", mexican:"Mexicana", sandwiches:"Sándwiches", asian:"Asiática", pizza:"Pizza", sweets:"Postres", tacos:"Tacos", diner:"Cafetería", bbq:"Barbacoa"};
 function catLabel(c){ return (LANG==="es" ? CAT_LABELS_ES[c] : CAT_LABELS[c]) || CAT_LABELS[c] || c; }
 
@@ -874,6 +935,17 @@ en:{
   mapDirections:"Directions",
   mapOpenGoogle:"Open in Google Maps",
   closeLabel:"Close",
+  browseBtn:"Browse {area} places",
+  browseList:"List",
+  browseMap:"Map",
+  browseAll:"All",
+  browseMexican:"Mexican",
+  browseChinese:"Chinese",
+  browseSweets:"Sweets & Desserts",
+  browseRollSpot:"🎲 Roll this spot",
+  browseItems:"{n} items",
+  browseNone:"No spots in this category here yet",
+  browseMapFail:"Couldn't load the map — check your connection, or use the list.",
   waterMod:"free at most places if you ask nicely",
   wdSmall:"Bored?",
   wdBold:"Try What Do",
@@ -950,6 +1022,17 @@ es:{
   mapDirections:"Cómo llegar",
   mapOpenGoogle:"Abrir en Google Maps",
   closeLabel:"Cerrar",
+  browseBtn:"Explorar lugares de {area}",
+  browseList:"Lista",
+  browseMap:"Mapa",
+  browseAll:"Todos",
+  browseMexican:"Mexicana",
+  browseChinese:"China",
+  browseSweets:"Dulces y postres",
+  browseRollSpot:"🎲 Girar en este lugar",
+  browseItems:"{n} platillos",
+  browseNone:"Aún no hay lugares de esta categoría aquí",
+  browseMapFail:"No se pudo cargar el mapa — revisa tu conexión o usa la lista.",
   waterMod:"gratis en la mayoría de los lugares si lo pides amablemente",
   wdSmall:"¿Aburrido?",
   wdBold:"Prueba What Do",
@@ -31881,7 +31964,7 @@ function buildLocalChains(spots){
     if(!s.items || !s.items.length) return; // real menus only — no items, no rolls
     const tpl=GENERIC_MENUS[s.cat];
     const key="local_"+idx;
-    chains[key]={ name:s.name, color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items };
+    chains[key]={ name:s.name, cat:s.cat||"", color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items };
     (s.zips||[]).forEach(z=>{ (byZip[z]=byZip[z]||[]).push(key); });
     if(s.city) (byCity[s.city.toLowerCase()]=byCity[s.city.toLowerCase()]||[]).push(key);
   });
@@ -31890,7 +31973,7 @@ function buildLocalChains(spots){
 function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.chains; LOCAL_BY_ZIP=r.byZip; LOCAL_BY_CITY=r.byCity; }
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
-const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null,
+const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, area:null, livePlaces:[],
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false } };
 
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
@@ -32131,18 +32214,18 @@ $("zip").addEventListener("input",e=>{
   const v=e.target.value.trim();
   clearTimeout(zipTimer);
   if(/^\d{5}$/.test(v)){
-    state.zip=v; state.liveKeys=null; state.nearest=null;
+    state.zip=v; state.liveKeys=null; state.nearest=null; state.area=null; state.livePlaces=[]; syncBrowseBtn();
     setZipNoteKey("noteFinding", {x:v});
     zipTimer=setTimeout(()=>lookupZip(v), 500);
   } else if(/[a-zA-Z]{2,}/.test(v) && !/^\d+$/.test(v)){
-    state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
+    state.zip=""; state.liveKeys=null; state.nearest=null; state.city=""; state.area=null; state.livePlaces=[]; syncBrowseBtn();
     setZipNoteKey("noteLooking", {x:v});
     zipTimer=setTimeout(()=>lookupCity(v), 800);
   } else if(/^\d{1,4}$/.test(v)){
-    state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
+    state.zip=""; state.liveKeys=null; state.nearest=null; state.city=""; state.area=null; state.livePlaces=[]; syncBrowseBtn();
     setZipNoteKey("noteKeepTyping");
   } else {
-    state.zip=""; state.liveKeys=null; state.nearest=null; state.city="";
+    state.zip=""; state.liveKeys=null; state.nearest=null; state.city=""; state.area=null; state.livePlaces=[]; syncBrowseBtn();
     setZipNoteKey("noteDefault", {n:CHAIN_KEYS.length});
   }
 });
@@ -32268,6 +32351,189 @@ $("btnMap").onclick=openMap;
 $("mapClose").onclick=closeMap;
 mapOverlay.onclick=closeMap;
 
+/* ---- Browse: area-scoped place browser (list + map) ----
+   Only opens once a search establishes an area (state.area). The set is the
+   area's local spots (same ZIP/city joining as the pool, WITHOUT roll filters)
+   plus the live-lookup places from that search. The generic CHAINS cards are
+   never listed — browse is about real places found in the area. */
+const browsePanel=$("browsePanel"), browseOverlay=$("browseOverlay");
+const BROWSE_CHIPS=["all","tacos","pizza","burgers","chicken","asian","sandwiches","bbq","diner","sweets"];
+let browseChip="all", browseView="list", browseShown=[];
+let browseLeafletP=null, browseMapObj=null, browseLayer=null, browseMapToken=0;
+function escHtml(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function isSweetsSpot(chain){
+  if(!chain || !chain.items) return false;
+  const sweetsOnly = !cat(chain.items,"main").length && sweetPool(chain).length>0; // Sweet Tooth predicate: no mains, dessert-driven
+  return sweetsOnly || cat(chain.items,"dessert").length>=3;
+}
+function liveTypeMap(tp){
+  const s=(tp||"").toLowerCase();
+  if(s.includes("mexican")||s.includes("taco")) return {cat:"tacos"};
+  if(s.includes("pizza")) return {cat:"pizza"};
+  if(s.includes("hamburger")||s.includes("burger")) return {cat:"burgers"};
+  if(s.includes("fried_chicken")||s.includes("chicken")) return {cat:"chicken"};
+  if(s.includes("chinese")) return {cat:"asian"};
+  if(s.includes("sandwich")) return {cat:"sandwiches"};
+  if(s.includes("barbecue")||s.includes("bbq")) return {cat:"bbq"};
+  if(s.includes("ice_cream")||s.includes("dessert")||s.includes("candy")||s.includes("bakery")) return {cat:"", sweets:true};
+  if(s.includes("cafe")||s.includes("diner")||s.includes("breakfast")) return {cat:"diner"};
+  return {cat:""};
+}
+function humanType(tp){ const s=(tp||"").replace(/_/g," ").trim(); return s ? s.charAt(0).toUpperCase()+s.slice(1) : ""; }
+function browseCatLabel(c){
+  if(c==="tacos") return t("browseMexican");
+  if(c==="asian") return t("browseChinese");
+  if(c==="sweets") return t("browseSweets");
+  return catLabel(c);
+}
+function browseChipLabel(ch){ return ch==="all" ? t("browseAll") : browseCatLabel(ch); }
+function browseLocalKeys(){
+  const seen=new Set(), ks=[];
+  const add=k=>{ if(!seen.has(k) && LOCAL_CHAINS[k]){ seen.add(k); ks.push(k); } };
+  if(state.zip) (LOCAL_BY_ZIP[state.zip]||[]).forEach(add);
+  const city=(state.city||"").toLowerCase();
+  if(city) (LOCAL_BY_CITY[city]||[]).forEach(add);
+  return ks;
+}
+function browseSet(){
+  const out=[], localNames=new Set();
+  for(const k of browseLocalKeys()){
+    const co=chainObj(k); if(!co) continue;
+    localNames.add(normalizeBrand(co.name));
+    out.push({key:k, name:co.name, cat:co.cat||"", addr:co.addr||"", city:co.city||"", zips:co.zips||[], items:co.items||[], local:true, sweets:isSweetsSpot(co), lat:null, lon:null, typeLabel:""});
+  }
+  for(const p of (state.livePlaces||[])){
+    if(!p || !p.name) continue;
+    if(localNames.has(normalizeBrand(p.name))) continue; // the local entry wins over its live twin
+    const m=liveTypeMap(p.type);
+    out.push({key:null, name:p.name, cat:m.cat||"", addr:p.addr||"", city:"", zips:[], items:null, local:false, sweets:!!m.sweets, lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), typeLabel:humanType(p.type)});
+  }
+  return out;
+}
+function spotInChip(s, ch){
+  if(ch==="all") return true;
+  if(ch==="sweets") return !!s.sweets;
+  return s.cat===ch;
+}
+function browseCounts(set){
+  const c={all:set.length};
+  for(const ch of BROWSE_CHIPS){ if(ch!=="all") c[ch]=0; }
+  for(const s of set) for(const ch of BROWSE_CHIPS){ if(ch!=="all" && spotInChip(s,ch)) c[ch]++; }
+  return c;
+}
+function browseAreaLabel(){ const a=state.area; return a ? (a.city || a.zip || "") : ""; }
+function syncBrowseBtn(){
+  const btn=$("browseBtn"); if(!btn) return;
+  const lbl=browseAreaLabel();
+  if(lbl){ btn.style.display=""; btn.textContent=t("browseBtn", {area:lbl}); }
+  else btn.style.display="none";
+}
+function browsePriceRange(items){
+  const ps=(items||[]).filter(i=>i.p!=null && i.p>0).map(i=>i.p);
+  if(!ps.length) return "";
+  const mn=Math.min.apply(null,ps), mx=Math.max.apply(null,ps);
+  const f=v=>"$"+(Number.isInteger(v)?String(v):v.toFixed(2));
+  return mn===mx ? f(mn) : f(mn)+"–"+f(mx);
+}
+function openBrowse(){
+  if(!state.area) return; // no area, no browse — there is no global list
+  closeDrawer(); closeDeals(); closeMap();
+  browseChip="all"; browseView="list";
+  renderBrowse();
+  browsePanel.classList.add("open"); browseOverlay.classList.add("open");
+}
+function closeBrowse(){ browseMapToken++; browsePanel.classList.remove("open"); browseOverlay.classList.remove("open"); }
+function renderBrowse(){
+  const set=browseSet(), counts=browseCounts(set);
+  $("browseTitle").textContent=browseAreaLabel();
+  $("browseClose").setAttribute("aria-label", t("closeLabel"));
+  $("browseViewList").textContent=t("browseList");
+  $("browseViewMap").textContent=t("browseMap");
+  $("browseViewList").classList.toggle("on", browseView==="list");
+  $("browseViewMap").classList.toggle("on", browseView==="map");
+  $("browseChips").innerHTML=BROWSE_CHIPS.map(ch=>'<button type="button" class="bchip'+(ch===browseChip?" on":"")+'" data-ch="'+ch+'">'+escHtml(browseChipLabel(ch))+' <small>'+counts[ch]+'</small></button>').join("");
+  $("browseChips").querySelectorAll(".bchip").forEach(b=>{ b.onclick=()=>{ browseChip=b.dataset.ch; renderBrowse(); }; });
+  browseShown=set.filter(s=>spotInChip(s, browseChip)).sort((a,b)=>a.name.localeCompare(b.name));
+  if(browseView==="map"){
+    $("browseList").style.display="none"; $("browseMap").style.display="block";
+    showBrowseMap();
+    return;
+  }
+  $("browseMap").style.display="none"; $("browseList").style.display="";
+  if(!browseShown.length){ $("browseList").innerHTML='<p class="bnote">'+t("browseNone")+'</p>'; return; }
+  $("browseList").innerHTML=browseShown.map((s,i)=>{
+    const lab = s.local ? (s.cat ? browseCatLabel(s.cat) : (s.sweets ? t("browseSweets") : "")) : "";
+    const meta = s.local
+      ? t("browseItems", {n:s.items.length}) + (browsePriceRange(s.items) ? " · "+browsePriceRange(s.items) : "")
+      : (s.cat ? browseCatLabel(s.cat) : (s.sweets ? t("browseSweets") : s.typeLabel));
+    return '<div class="bcard"><b>'+escHtml(s.name)+'</b>'
+      + (lab ? '<div class="blab">'+escHtml(lab)+'</div>' : "")
+      + (s.addr ? '<div class="baddr">'+escHtml(s.addr)+'</div>' : "")
+      + (meta ? '<div class="bmeta">'+escHtml(meta)+'</div>' : "")
+      + '<div class="brow2"><button type="button" class="mapbtn bmap" data-i="'+i+'">'+t("mapBtn")+'</button>'
+      + (s.local ? '<button type="button" class="broll" data-i="'+i+'">'+t("browseRollSpot")+'</button>' : "")
+      + '</div></div>';
+  }).join("");
+  $("browseList").querySelectorAll(".bmap").forEach(b=>{ b.onclick=()=>browseOpenMap(+b.dataset.i); });
+  $("browseList").querySelectorAll(".broll").forEach(b=>{ b.onclick=()=>{ const s=browseShown[+b.dataset.i]; if(s && s.key){ closeBrowse(); rollChain(s.key); } }; });
+}
+function browseOpenMap(i){
+  const s=browseShown[i]; if(!s) return;
+  state.lastPlace = s.local
+    ? {name:s.name, addr:s.addr, city:s.city||"", st:"", zip:(s.zips&&s.zips[0])||"", lat:null, lon:null}
+    : {name:s.name, addr:s.addr, city:"", st:"", zip:"", lat:s.lat, lon:s.lon};
+  closeBrowse();
+  openMap();
+}
+function loadLeaflet(){
+  if(window.L) return Promise.resolve(true);
+  if(browseLeafletP) return browseLeafletP;
+  browseLeafletP=new Promise(res=>{
+    const css=document.createElement("link"); css.rel="stylesheet"; css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(css);
+    const js=document.createElement("script"); js.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    js.onload=()=>res(!!window.L);
+    js.onerror=()=>{ browseLeafletP=null; res(false); };
+    document.head.appendChild(js);
+    setTimeout(()=>{ if(!window.L) browseLeafletP=null; res(!!window.L); }, 8000);
+  });
+  return browseLeafletP;
+}
+async function showBrowseMap(){
+  const token=++browseMapToken;
+  const el=$("browseMap");
+  const okLoad=await loadLeaflet();
+  if(token!==browseMapToken) return;
+  const L=window.L;
+  if(!okLoad || !L){ if(!browseMapObj) el.innerHTML='<p class="bnote">'+t("browseMapFail")+'</p>'; return; }
+  if(!browseMapObj){
+    el.innerHTML="";
+    browseMapObj=L.map(el).setView([39.5,-98.35],4);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:"&copy; OpenStreetMap contributors"}).addTo(browseMapObj);
+    browseLayer=L.layerGroup().addTo(browseMapObj);
+  }
+  browseLayer.clearLayers();
+  const spots=browseShown.slice(), pts=[];
+  const addPt=s=>{ browseLayer.addLayer(L.marker([s.lat,s.lon]).bindPopup("<b>"+escHtml(s.name)+"</b>"+(s.addr?"<br>"+escHtml(s.addr):""))); pts.push([s.lat,s.lon]); };
+  const fit=()=>{ if(!pts.length) return; if(pts.length===1) browseMapObj.setView(pts[0],14); else browseMapObj.fitBounds(pts,{padding:[26,26], maxZoom:15}); };
+  for(const s of spots){ if(s.lat!=null && s.lon!=null) addPt(s); }
+  fit();
+  setTimeout(()=>{ if(token===browseMapToken && browseMapObj){ try{ browseMapObj.invalidateSize(); }catch(e){} fit(); } },60);
+  for(const s of spots){ // locals geocode lazily, one at a time, through the shared map cache
+    if(token!==browseMapToken || browseView!=="map" || !browsePanel.classList.contains("open")) break;
+    if(s.lat!=null && s.lon!=null) continue;
+    if(!s.addr) continue;
+    const p={name:s.name, addr:s.addr, city:s.city||"", st:"", zip:(s.zips&&s.zips[0])||""};
+    let g=mapCacheGet(mapCacheKey(p));
+    if(!g){ g=await geocodePlace(p); if(g) mapCacheSet(mapCacheKey(p), g); }
+    if(g){ s.lat=g.lat; s.lon=g.lon; if(token===browseMapToken && browseView==="map"){ addPt(s); fit(); } }
+  }
+}
+$("browseBtn").addEventListener("click", openBrowse);
+$("browseClose").onclick=closeBrowse;
+browseOverlay.onclick=closeBrowse;
+$("browseViewList").onclick=()=>{ if(browseView!=="list"){ browseView="list"; renderBrowse(); } };
+$("browseViewMap").onclick=()=>{ if(browseView!=="map"){ browseView="map"; renderBrowse(); } };
+
 /* ---- Language: apply the current language to everything on screen ---- */
 function applyLang(){
   document.documentElement.lang = LANG;
@@ -32305,6 +32571,8 @@ function applyLang(){
   drawHistory();
   if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combo, state.lastRender.chainKey);
   if(mapPanel.classList.contains("open")) fillMapPanel();
+  syncBrowseBtn();
+  if(browsePanel.classList.contains("open")) renderBrowse();
   if(dealsPanel.classList.contains("open")){ dealsLoaded=false; $("dealsList").innerHTML='<p id="dealsLoading" style="color:var(--muted); font-size:14px;">'+t("dealsLoading")+'</p>'; loadDeals(); }
 }
 function setLang(l){
