@@ -216,9 +216,16 @@
     #feedme{margin-top:14px;}
     /* Result card: place info (name, address, hours, stars, map) in a
        340px left column; the meal, totals and Roll again in the wide
-       right column, so a full roll fits with minimal scrolling. */
+       right column, so a full roll fits with minimal scrolling.
+       The left column is ONE flex column (.rleft): the name bar stays
+       content-height (no more stretched tan block — the old per-child
+       grid rows let the spanning meal side stretch the chainbar's
+       background the full card height) and the rating widget + Map
+       sit at the bottom via margin-top:auto; the gap between is
+       plain card background. */
     #result.show{display:grid; grid-template-columns:340px minmax(0,1fr);}
-    #result .chainbar, #result .locbar, #result #rVote, #result #rMapRow{grid-column:1;}
+    #result .rleft{grid-column:1; display:flex; flex-direction:column;}
+    #result .rleft #rVote{margin-top:auto;}
     #result .rbody{grid-column:2; grid-row:1 / -1; border-left:1px solid var(--line); padding:18px 20px; display:flex; flex-direction:column;}
     #result .rbody #rItems{flex:1;}
     #rItems{display:grid; grid-template-columns:1fr 1fr; gap:0 28px; align-content:start;}
@@ -251,7 +258,7 @@
 
   <div class="panel">
     <h3 id="whereAt">Where you at</h3>
-    <input class="zip" id="zip" placeholder="ZIP code or city, state">
+    <input class="zip" id="zip" placeholder="ZIP code or city, state" enterkeyhint="go">
     <div class="zipnote" id="zipnote">Type a ZIP or a city — the app finds the fast food near it. Blank = all chains.</div>
   </div>
 
@@ -259,12 +266,14 @@
   <div id="filterSummary"></div>
 
   <div id="result">
-    <div class="chainbar" id="rChain"></div>
-    <div class="locbar" id="rLoc"></div>
-    <div class="locbar" id="rHours"></div>
-    <div class="locbar" id="rRate"></div>
-    <div id="rVote"></div>
-    <div id="rMapRow"><button class="mapbtn" id="btnMap" type="button">📍 Map</button></div>
+    <div class="rleft">
+      <div class="chainbar" id="rChain"></div>
+      <div class="locbar" id="rLoc"></div>
+      <div class="locbar" id="rHours"></div>
+      <div class="locbar" id="rRate"></div>
+      <div id="rVote"></div>
+      <div id="rMapRow"><button class="mapbtn" id="btnMap" type="button">📍 Map</button></div>
+    </div>
     <div class="rbody">
       <div id="rItems"></div>
       <div class="totals">
@@ -51240,6 +51249,11 @@ function updateSummary(){
 }
 
 $("feedme").onclick=roll;
+/* Enter (desktop keyboard) / Go (mobile keyboard, via enterkeyhint="go"
+   on the input) rolls the same as FEED ME. No <form> wraps the input,
+   so there is no submit/reload to fight; keydown fires once per press
+   and a keypress never clicks the button — no double-roll. */
+$("zip").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); roll(); } });
 $("btnAgain").onclick=roll;
 drawHistory();
 
