@@ -204,6 +204,37 @@
   #whatdoLink .wT small{color:var(--muted); font-size:10.5px;}
   #whatdoLink .wT b{font-size:13px;}
 
+  /* Desktop layout (2026-11-16): wide screens use the full page width like
+     a dashboard — narrow screens keep the single-column phone layout
+     untouched. Breakpoint 900px: the existing 760px rule only pins the
+     burger button; 900px keeps tablets in the phone layout and only true
+     desktop widths go wide. All rules below live inside this one query,
+     so below 900px the stylesheet behaves exactly as before. */
+  @media (min-width:900px){
+    .wrap{max-width:1120px; padding:24px 32px; display:grid; grid-template-columns:minmax(0,1fr) 300px; column-gap:20px; align-items:center;}
+    header, #filterSummary, #result, #history, footer{grid-column:1 / -1;}
+    #feedme{margin-top:14px;}
+    /* Result card: place info (name, address, hours, stars, map) in a
+       340px left column; the meal, totals and Roll again in the wide
+       right column, so a full roll fits with minimal scrolling. */
+    #result.show{display:grid; grid-template-columns:340px minmax(0,1fr);}
+    #result .chainbar, #result .locbar, #result #rVote, #result #rMapRow{grid-column:1;}
+    #result .rbody{grid-column:2; grid-row:1 / -1; border-left:1px solid var(--line); padding:18px 20px; display:flex; flex-direction:column;}
+    #result .rbody #rItems{flex:1;}
+    #rItems{display:grid; grid-template-columns:1fr 1fr; gap:0 28px; align-content:start;}
+    #rItems .item{min-width:0;}
+    #result .actions .btn{flex:0 0 260px;}
+    /* History: two across */
+    #history.open .histbody{display:grid; grid-template-columns:1fr 1fr; gap:0 12px;}
+    /* Panels: wider on desktop, their cards in two-column grids */
+    #dealsPanel{width:640px;}
+    #dealsList{display:grid; grid-template-columns:1fr 1fr; gap:0 12px; align-content:start;}
+    #browsePanel{width:780px;}
+    #browseList{display:grid; grid-template-columns:1fr 1fr; gap:0 12px; align-content:start;}
+    #mapPanel{width:480px;}
+    #mapFrame{height:360px;}
+  }
+
 </style>
 </head>
 <body>
