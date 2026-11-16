@@ -116,6 +116,18 @@
   .deal .roll{margin-left:auto; background:var(--acc); color:#fff; border:none; border-radius:8px; padding:6px 12px; font-weight:800; font-size:12.5px; cursor:pointer;}
   .locbar{padding:7px 16px; font-size:12.5px; color:var(--muted); background:var(--card2); display:none;}
   .locbar.show{display:block;}
+  /* Place ratings (2026-11-15): shared 5-star averages from the Worker + D1.
+     The vote row stays hidden until the ratings endpoint answers once —
+     on the pre-ratings Worker the app looks exactly as before. */
+  #rVote{display:none; background:var(--card2); padding:2px 16px 12px;}
+  #rVote.show{display:block;}
+  #rVote .ratelabel{font-size:12.5px; color:var(--muted);}
+  #rVote .rstars{display:flex; gap:2px; margin-top:2px;}
+  #rVote .rstar{background:none; border:none; padding:0 2px; font-size:22px; line-height:1; color:var(--muted); cursor:pointer;}
+  #rVote .rstar.on{color:#ffc72c;}
+  #rVote .rateyou{font-size:12px; color:var(--muted); margin-top:3px;}
+  .brate{font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .brate:empty{display:none;}
   /* Language toggle — fixed top-right pill, mirrors the top-left hamburger */
   #langBtn{position:fixed; top:16px; right:16px; z-index:35; display:flex; gap:2px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:999px; padding:5px 7px; cursor:pointer; font-size:12px; font-weight:800; color:var(--muted); box-shadow:0 4px 14px rgba(0,0,0,.18);}
   #langBtn .lg{padding:2px 7px; border-radius:999px; line-height:1.2;}
@@ -219,6 +231,8 @@
     <div class="chainbar" id="rChain"></div>
     <div class="locbar" id="rLoc"></div>
     <div class="locbar" id="rHours"></div>
+    <div class="locbar" id="rRate"></div>
+    <div id="rVote"></div>
     <div id="rMapRow"><button class="mapbtn" id="btnMap" type="button">📍 Map</button></div>
     <div class="rbody">
       <div id="rItems"></div>
@@ -743,7 +757,7 @@ function placesFromGoogle(places, qlat, qlon){
     const d = distMi(qlat, qlon, p.lat, p.lon);
     const addr = p.address ? (p.address.split(",")[0].trim() || null) : null;
     const cur = nearest[k];
-    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10, lat:p.lat, lon:p.lon, ...hrs};
+    if(!cur || d<cur.dist) nearest[k]={name:p.name, addr, dist:Math.round(d*10)/10, lat:p.lat, lon:p.lon, pid:(p.id||null), ...hrs};
     else if(cur.openNow===null && hrs.openNow!==null){ cur.openNow=hrs.openNow; cur.nextClose=hrs.nextClose; cur.nextOpen=hrs.nextOpen; } // keep the closest spot, but adopt hours from a farther twin if the closest has none
   }
   const all=[], seenAll=new Set();
@@ -752,7 +766,7 @@ function placesFromGoogle(places, qlat, qlon){
     const addr=p.address ? p.address.split(",").slice(0,2).join(",").trim() : "";
     const dk=normalizeBrand(p.name)+"|"+addr;
     if(seenAll.has(dk)) continue; seenAll.add(dk);
-    all.push({name:p.name, addr, type:p.type||"", lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null});
+    all.push({name:p.name, addr, type:p.type||"", lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), pid:(p.id||null), openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null});
   }
   return {keys:[...keys], total, nearest, all};
 }
@@ -1003,6 +1017,10 @@ en:{
   closedOpens:"Closed · opens {t}",
   open24:"Open 24 hours",
   closedNow:"Closed",
+  rateThis:"Rate this place",
+  yourRating:"You rated {stars}",
+  ratingsMany:"({n} ratings)",
+  ratingOne:"(1 rating)",
   done:"Done",
   drawerNote:"Filters apply to your next roll. The chain lock is parked here for a future version.",
   on:"ON",
@@ -1098,6 +1116,10 @@ es:{
   closedOpens:"Cerrado · abre a las {t}",
   open24:"Abierto 24 horas",
   closedNow:"Cerrado",
+  rateThis:"Califica este lugar",
+  yourRating:"Tu calificación: {stars}",
+  ratingsMany:"({n} calificaciones)",
+  ratingOne:"(1 calificación)",
   done:"Listo",
   drawerNote:"Los filtros aplican en tu próxima tirada. El candado de cadena queda para una versión futura.",
   on:"SÍ",
@@ -50782,7 +50804,7 @@ function buildCatering(ck, chain){
    closedDays [0=Sun..6=Sat]. No hrs data = unknown (null), never guessed.
    Timezone derives from the spot's state (all CA packs PT, Youngstown ET). */
 const TZ_BY_STATE = { CA:"America/Los_Angeles", OH:"America/New_York" };
-const GRUB_TEST = { now:null }; // test hook: suite pins the clock here
+const GRUB_TEST = { now:null, ratingsTransport:null }; // test hook: suite pins the clock here; ratingsTransport replaces fetch for ratings calls
 function grubNow(){ return GRUB_TEST.now || new Date(); }
 function spotState(co){
   if(!co) return "CA";
@@ -50856,6 +50878,139 @@ function liveHoursLine(k){
   }
   if(n.nextOpen && knownTZ) return t("closedOpens", { t:fmtISOInTZ(n.nextOpen, tz) });
   return t("closedNow");
+}
+
+/* ---- place ratings (2026-11-15): shared 5-star averages, Worker + D1 ----
+   One rating per PLACE (never per combo/item). The average of ALL users'
+   votes lives in the Worker (D1 table `ratings` in database `grub-ratings`)
+   and is shown to everyone. Place keys:
+     locals:  "local:" + slug(name|city|addr) — app spots carry no pack `id`;
+              name+city+addr IS the regen key, so this slug is stable
+              across regens and unique even for same-name twins.
+     chains:  "chain:" + chainKey (e.g. chain:mcdonalds) — one rating per
+              chain, not per store.
+     live:    "live:" + Google place_id (Worker v4 returns places.id); the
+              OSM fallback has no place_id, so it falls back to a
+              name|addr slug. The Worker validates keys against
+              ^(local|chain|live):[A-Za-z0-9][A-Za-z0-9\-_]{0,120}$ — the
+              id part allows uppercase because Google place_ids do.
+   Own votes persist in localStorage `gr_myratings` (placeId -> stars) so a
+   returning user sees their vote and can change it; a re-vote REPLACES the
+   old one server-side too (one row per place+voter).
+   GRACEFUL DEGRADATION: the ratings UI appears only after a /ratings call
+   succeeds once (RATINGS_OK). Until Orlando pastes the v4 Worker, every
+   ratings call fails and the app looks exactly as before — no banners, no
+   console spam, no layout change. A failed vote is a silent no-op. */
+function slugId(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/['’]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,100); }
+function ratingIdFor(p){
+  if(!p) return null;
+  if(p.local) return "local:"+slugId((p.name||"")+"|"+(p.city||"")+"|"+(p.addr||""));
+  if(p.chainKey) return "chain:"+p.chainKey;
+  if(p.pid) return "live:"+p.pid;
+  if(p.name) return "live:"+slugId((p.name||"")+"|"+(p.addr||""));
+  return null;
+}
+function ratingStarsText(avg){
+  const full=Math.max(0, Math.min(5, Math.round(Number(avg)||0)));
+  return "★".repeat(full) + "☆".repeat(5-full);
+}
+function ratingLine(rec){
+  if(!rec || !(rec.count>0) || typeof rec.avg!=="number") return null;
+  return ratingStarsText(rec.avg)+" "+rec.avg.toFixed(1)+" "+(rec.count===1 ? t("ratingOne") : t("ratingsMany", {n:rec.count}));
+}
+function ratingCompact(rec){
+  if(!rec || !(rec.count>0) || typeof rec.avg!=="number") return "";
+  return "★ "+rec.avg.toFixed(1)+" ("+rec.count+")";
+}
+let RATINGS={};        // placeId -> {avg, count}, in-memory session cache
+let RATINGS_OK=false;  // true once a /ratings call has succeeded (endpoint exists)
+let MY_RATINGS={};
+try{ MY_RATINGS=JSON.parse(localStorage.getItem("gr_myratings")||"{}")||{}; }catch(e){ MY_RATINGS={}; }
+function myRatingFor(id){ return (id && MY_RATINGS[id]) || null; }
+function saveMyRating(id, stars){
+  stars=Math.round(Number(stars)||0);
+  if(!id || stars<1 || stars>5) return false;
+  MY_RATINGS[id]=stars;
+  try{ localStorage.setItem("gr_myratings", JSON.stringify(MY_RATINGS)); }catch(e){}
+  return true;
+}
+// test seam: GRUB_TEST.ratingsTransport, when set, replaces fetch for ratings calls
+function ratingsFetch(url, opts){
+  const tr=(typeof GRUB_TEST!=="undefined" && GRUB_TEST.ratingsTransport) || null;
+  return tr ? tr(url, opts) : fetch(url, opts);
+}
+let ratingsPending=new Set(), ratingsTimer=null;
+function scheduleRatingsFetch(ids){
+  (ids||[]).forEach(id=>{ if(id) ratingsPending.add(id); });
+  if(ratingsTimer) return;
+  ratingsTimer=setTimeout(()=>{ ratingsTimer=null; const batch=[...ratingsPending]; ratingsPending=new Set(); fetchRatings(batch); }, 150);
+}
+async function fetchRatings(ids){
+  ids=[...new Set(ids||[])].filter(id=>id && !(id in RATINGS)).slice(0,50);
+  if(!ids.length) return;
+  try{
+    const r=await ratingsFetch(GOOGLE_WORKER+"/ratings?ids="+ids.map(encodeURIComponent).join(","));
+    if(!r.ok) throw new Error("ratings "+r.status);
+    const data=await r.json();
+    RATINGS_OK=true;
+    for(const id of Object.keys(data||{})){
+      const v=data[id];
+      if(v && typeof v.avg==="number" && typeof v.count==="number") RATINGS[id]={avg:v.avg, count:v.count};
+    }
+    refreshRatingsUI();
+  }catch(e){ /* endpoint absent (pre-ratings Worker) or offline: stay hidden, never spam */ }
+}
+function refreshRatingsUI(){
+  drawResultRatings();
+  refreshBrowseRatings();
+}
+function refreshBrowseRatings(){
+  if(typeof browsePanel!=="undefined" && browsePanel.classList.contains("open") && browseView==="list"){
+    const list=$("browseList"); if(!list) return;
+    list.querySelectorAll(".brate").forEach(el=>{
+      const rec=RATINGS[el.dataset.rid];
+      el.textContent=rec ? ratingCompact(rec) : "";
+    });
+  }
+}
+function currentRatingId(){
+  const lr=state.lastRender; if(!lr) return null;
+  return lr.chain.local ? ratingIdFor(lr.chain) : ratingIdFor({chainKey:lr.chainKey});
+}
+function drawResultRatings(){
+  const rr=$("rRate"), vv=$("rVote");
+  if(!rr || !vv) return;
+  const rid=currentRatingId();
+  if(!rid || !RATINGS_OK){
+    rr.textContent=""; rr.classList.remove("show");
+    vv.innerHTML=""; vv.classList.remove("show");
+    return;
+  }
+  const rec=RATINGS[rid];
+  const line=ratingLine(rec);
+  if(line){ rr.textContent=line; rr.classList.add("show"); }
+  else { rr.textContent=""; rr.classList.remove("show"); }
+  const mine=myRatingFor(rid);
+  let html='<div class="ratelabel">'+escHtml(t("rateThis"))+'</div><div class="rstars">'
+    + [1,2,3,4,5].map(n=>'<button type="button" class="rstar'+(mine && n<=mine?" on":"")+'" data-n="'+n+'" aria-label="'+n+'">'+(mine && n<=mine?"★":"☆")+'</button>').join("")
+    + '</div>'
+    + (mine ? '<div class="rateyou">'+escHtml(t("yourRating", {stars:ratingStarsText(mine)}))+'</div>' : "");
+  vv.innerHTML=html;
+  vv.querySelectorAll(".rstar").forEach(b=>{ b.onclick=()=>submitRating(rid, +b.dataset.n); });
+  vv.classList.add("show");
+}
+async function submitRating(placeId, stars){
+  stars=Math.round(Number(stars)||0);
+  if(!placeId || stars<1 || stars>5) return null;
+  try{
+    const r=await ratingsFetch(GOOGLE_WORKER+"/ratings", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({placeId, stars})});
+    if(!r.ok) throw new Error("ratings "+r.status);
+    const data=await r.json();
+    if(data && typeof data.avg==="number" && typeof data.count==="number"){ RATINGS[placeId]={avg:data.avg, count:data.count}; RATINGS_OK=true; }
+    saveMyRating(placeId, stars);
+    refreshRatingsUI();
+    return RATINGS[placeId]||null;
+  }catch(e){ /* offline / pre-ratings Worker: vote silently dropped, nothing breaks */ return null; }
 }
 
 function availableChains(){
@@ -50965,6 +51120,10 @@ function render(chain, combo, chainKey){
   $("rCal").textContent=c.toLocaleString();
   $("rVal").textContent = p===null ? "—" : (p>0 ? Math.round(c/p) : "∞");
   $("result").classList.add("show");
+  /* ratings: shared average + vote widget for this place (hidden until the
+     ratings endpoint answers once); fetch this place's average now */
+  drawResultRatings();
+  scheduleRatingsFetch([currentRatingId()]);
   $("result").scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
@@ -51234,7 +51393,7 @@ function browseSet(){
     if(!p || !p.name) continue;
     if(localNames.has(normalizeBrand(p.name))) continue; // the local entry wins over its live twin
     const m=liveTypeMap(p.type);
-    out.push({key:null, name:p.name, cat:m.cat||"", addr:p.addr||"", city:"", zips:[], items:null, local:false, sweets:!!m.sweets, lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), typeLabel:humanType(p.type), openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null});
+    out.push({key:null, name:p.name, cat:m.cat||"", addr:p.addr||"", city:"", zips:[], items:null, local:false, sweets:!!m.sweets, lat:(p.lat!=null?p.lat:null), lon:(p.lon!=null?p.lon:null), pid:(p.pid||null), typeLabel:humanType(p.type), openNow:(p.openNow===true?true:(p.openNow===false?false:null)), nextClose:p.nextClose||null, nextOpen:p.nextOpen||null});
   }
   return out;
 }
@@ -51243,6 +51402,7 @@ function spotInChip(s, ch){
   if(ch==="sweets") return !!s.sweets;
   return s.cat===ch;
 }
+function browseRatingId(s){ return ratingIdFor(s.local ? {local:true, name:s.name, city:s.city, addr:s.addr} : {pid:s.pid, name:s.name, addr:s.addr}); }
 function browseCounts(set){
   const c={all:set.length};
   for(const ch of BROWSE_CHIPS){ if(ch!=="all") c[ch]=0; }
@@ -51294,10 +51454,14 @@ function renderBrowse(){
     const meta = s.local
       ? t("browseItems", {n:s.items.length}) + (browsePriceRange(s.items) ? " · "+browsePriceRange(s.items) : "")
       : (s.cat ? browseCatLabel(s.cat) : (s.sweets ? t("browseSweets") : s.typeLabel));
+    const brid=browseRatingId(s);
+    const brec=brid ? RATINGS[brid] : null;
+    const brate='<div class="brate" data-rid="'+(brid||"")+'">'+(brec ? escHtml(ratingCompact(brec)) : "")+'</div>';
     return '<div class="bcard"><b>'+escHtml(s.name)+'</b>'
       + (lab ? '<div class="blab">'+escHtml(lab)+'</div>' : "")
       + (s.addr ? '<div class="baddr">'+escHtml(s.addr)+'</div>' : "")
       + (meta ? '<div class="bmeta">'+escHtml(meta)+'</div>' : "")
+      + brate
       + (!s.local && s.openNow===true ? '<span class="bopen on">'+escHtml(t("openNow"))+'</span>' : "")
       + (!s.local && s.openNow===false ? '<span class="bopen off">'+escHtml(t("closedNow"))+'</span>' : "")
       + '<div class="brow2"><button type="button" class="mapbtn bmap" data-i="'+i+'">'+t("mapBtn")+'</button>'
@@ -51306,6 +51470,7 @@ function renderBrowse(){
   }).join("");
   $("browseList").querySelectorAll(".bmap").forEach(b=>{ b.onclick=()=>browseOpenMap(+b.dataset.i); });
   $("browseList").querySelectorAll(".broll").forEach(b=>{ b.onclick=()=>{ const s=browseShown[+b.dataset.i]; if(s && s.key){ closeBrowse(); rollChain(s.key); } }; });
+  scheduleRatingsFetch(browseShown.map(browseRatingId)); // one debounced batch for the visible cards
 }
 function browseOpenMap(i){
   const s=browseShown[i]; if(!s) return;
