@@ -197,7 +197,7 @@
     .rbody{padding:12px;}
   }
 
-  /* Cross-link to the What Do app — fixed bottom-left pill */
+  /* Cross-link to the What To Do app — fixed bottom-left pill */
   #whatdoLink{position:fixed; left:12px; bottom:12px; z-index:30; display:flex; align-items:center; gap:8px; background:var(--card); color:var(--ink); border:1.5px solid var(--line); border-radius:999px; padding:7px 13px 7px 9px; box-shadow:0 8px 24px rgba(0,0,0,.30); text-decoration:none;}
   #whatdoLink svg{flex:none; color:var(--acc2);}
   #whatdoLink .wT{display:flex; flex-direction:column; line-height:1.15;}
@@ -1002,6 +1002,7 @@ function resolveLang(stored, nav){
 }
 const STRINGS = {
 en:{
+  logo:"WHAT TO <span>EAT?</span>",
   whereAt:"Where you at",
   zipPlaceholder:"ZIP code or city, state",
   noteDefaultPlain:"Type a ZIP or a city — the app finds the fast food near it. Blank = all chains.",
@@ -1097,10 +1098,11 @@ en:{
   browseMapFail:"Couldn't load the map — check your connection, or use the list.",
   waterMod:"free at most places if you ask nicely",
   wdSmall:"Bored?",
-  wdBold:"Try What Do",
-  wdAria:"Bored? Try What Do"
+  wdBold:"Try What To Do",
+  wdAria:"Bored? Try What To Do"
 },
 es:{
+  logo:"¿QUÉ <span>COMER?</span>",
   whereAt:"¿Dónde andas?",
   zipPlaceholder:"Código postal o ciudad, estado",
   noteDefaultPlain:"Escribe un código postal o una ciudad — la app encuentra la comida rápida cerca. En blanco = todas las cadenas.",
@@ -1178,7 +1180,7 @@ es:{
   appOnly:"Solo en la app",
   endsLabel:"Termina ",
   rollThis:"¡Gíralo!",
-  dealsFoot:"Cada oferta se verifica en una ubicación de Bakersfield en la publicación de la mañana. Toca ¡Gíralo! y What To Eat? te arma un combo de esa cadena al momento.",
+  dealsFoot:"Cada oferta se verifica en una ubicación de Bakersfield en la publicación de la mañana. Toca ¡Gíralo! y ¿Qué Comer? te arma un combo de esa cadena al momento.",
   mapBtn:"📍 Mapa",
   mapDirections:"Cómo llegar",
   mapOpenGoogle:"Abrir en Google Maps",
@@ -1196,8 +1198,8 @@ es:{
   browseMapFail:"No se pudo cargar el mapa — revisa tu conexión o usa la lista.",
   waterMod:"gratis en la mayoría de los lugares si lo pides amablemente",
   wdSmall:"¿Aburrido?",
-  wdBold:"Prueba What Do",
-  wdAria:"¿Aburrido? Prueba What Do"
+  wdBold:"Prueba What To Do",
+  wdAria:"¿Aburrido? Prueba What To Do"
 }};
 function t(key, params){
   let s = (STRINGS[LANG] && STRINGS[LANG][key]) || STRINGS.en[key] || key;
@@ -51577,6 +51579,7 @@ $("browseViewMap").onclick=()=>{ if(browseView!=="map"){ browseView="map"; rende
 /* ---- Language: apply the current language to everything on screen ---- */
 function applyLang(){
   document.documentElement.lang = LANG;
+  const logoEl=document.querySelector(".logo"); if(logoEl) logoEl.innerHTML=t("logo");
   const S=(id, v)=>{ const el=$(id); if(el) el.textContent=v; };
   S("whereAt", t("whereAt"));
   $("zip").placeholder = t("zipPlaceholder");
@@ -51632,7 +51635,7 @@ $("langBtn").onclick=()=>setLang(LANG==="es"?"en":"es");
   applyLang();
 })();
 </script>
-<a id="whatdoLink" href="https://orlandochaidez.com/what-do/" target="_blank" rel="noopener" aria-label="Bored? Try What Do">
+<a id="whatdoLink" href="https://orlandochaidez.com/what-do/" target="_blank" rel="noopener" aria-label="Bored? Try What To Do">
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <rect x="3" y="3" width="18" height="18" rx="4.5"/>
     <circle cx="8.4" cy="8.4" r="1.35" fill="currentColor" stroke="none"/>
@@ -51641,7 +51644,7 @@ $("langBtn").onclick=()=>setLang(LANG==="es"?"en":"es");
     <circle cx="8.4" cy="15.6" r="1.35" fill="currentColor" stroke="none"/>
     <circle cx="15.6" cy="15.6" r="1.35" fill="currentColor" stroke="none"/>
   </svg>
-  <span class="wT"><small id="wdSmall">Bored?</small><b id="wdBold">Try What Do</b></span>
+  <span class="wT"><small id="wdSmall">Bored?</small><b id="wdBold">Try What To Do</b></span>
 </a>
 </body>
 </html>
