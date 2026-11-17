@@ -33,6 +33,15 @@
   input.zip{width:100%; padding:12px; border-radius:12px; border:1px solid var(--line); background:var(--card2); color:var(--ink); font-size:16px; text-align:center; letter-spacing:2px;}
   input.zip:focus{outline:none; border-color:var(--acc);}
   .zipnote{font-size:12px; color:var(--muted); text-align:center; margin-top:8px;}
+  /* Crew mode (2026-11-17): how-many-mouths stepper, lives in the search
+     panel so it sits under the ZIP box on mobile and in the left column
+     on desktop — no layout change anywhere else. */
+  .mouthrow{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);}
+  .mouthrow>span{font-size:14px; font-weight:700;}
+  .stepper{display:flex; align-items:center; gap:10px;}
+  .stepper button{width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background:var(--card2); color:var(--ink); font-size:18px; font-weight:800; line-height:1; cursor:pointer;}
+  .stepper button:disabled{opacity:.35; cursor:default;}
+  .stepper b{font-size:16px; min-width:18px; text-align:center;}
   #feedme{display:block; width:100%; margin-top:16px; padding:20px; font-size:24px; font-weight:900; letter-spacing:1px; color:#fff; background:linear-gradient(135deg,var(--acc),#9e0018); border:none; border-radius:18px; cursor:pointer; box-shadow:0 6px 24px rgba(228,0,43,.35);}
   #feedme:active{transform:scale(.98);}
   #result{display:none; margin-top:16px; background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden;}
@@ -46,6 +55,17 @@
   .item>div:first-child{min-width:0; overflow-wrap:break-word;}
   .item .mod{display:block; font-size:12px; color:var(--acc2);}
   .item .pr{color:var(--muted); white-space:nowrap;}
+  /* Crew mode (2026-11-17): per-mouth sections on the result card. A
+     single mouth renders with NO .person wrapper at all — byte-identical
+     to today's card. With 2+ mouths each combo gets a labeled section
+     separated by one dashed rule (the person's first item drops its own
+     border so the divider never doubles). */
+  .person{border-top:1px dashed var(--line); padding:10px 0 2px; margin-top:6px;}
+  .person:first-child{border-top:none; padding-top:0; margin-top:0;}
+  .person .item:first-child{border-top:none;}
+  .personhead{font-size:12px; font-weight:800; letter-spacing:.6px; text-transform:uppercase; color:var(--acc2); margin-bottom:2px;}
+  #rCrewNote{font-size:12.5px; color:var(--muted); margin-top:10px;}
+  #rCrewNote:empty{display:none;}
   .totals{display:flex; gap:10px; margin-top:12px;}
   .stat{flex:1; min-width:0; background:var(--card2); border-radius:12px; padding:10px; text-align:center;}
   .stat b{display:block; font-size:19px;}
@@ -230,6 +250,7 @@
     #result .rbody #rItems{flex:1;}
     #rItems{display:grid; grid-template-columns:1fr 1fr; gap:0 28px; align-content:start;}
     #rItems .item{min-width:0;}
+    #rItems .person{min-width:0;}
     #result .actions .btn{flex:0 0 260px;}
     /* History: two across */
     #history.open .histbody{display:grid; grid-template-columns:1fr 1fr; gap:0 12px;}
@@ -260,6 +281,7 @@
     <h3 id="whereAt">Where you at</h3>
     <input class="zip" id="zip" placeholder="ZIP code or city, state" enterkeyhint="go">
     <div class="zipnote" id="zipnote">Type a ZIP or a city — the app finds the fast food near it. Blank = all chains.</div>
+    <div class="mouthrow"><span id="mouthLabel">How many mouths?</span><span class="stepper"><button id="mouthMinus" type="button" aria-label="Fewer mouths">−</button><b id="mouthCount">1</b><button id="mouthPlus" type="button" aria-label="More mouths">+</button></span></div>
   </div>
 
   <button id="feedme">FEED ME</button>
@@ -276,6 +298,7 @@
     </div>
     <div class="rbody">
       <div id="rItems"></div>
+      <div id="rCrewNote"></div>
       <div class="totals">
         <div class="stat"><b id="rPrice"></b><span id="statTotal">est. total</span></div>
         <div class="stat"><b id="rCal"></b><span id="statCal">est. calories</span></div>
@@ -844,7 +867,7 @@ function applyHoursData(hd){
   if(state.nearest) for(const k of Object.keys(state.nearest)){ const h=hd.byKey[k]; if(h){ state.nearest[k].openNow=h.openNow; state.nearest[k].nextClose=h.nextClose; state.nearest[k].nextOpen=h.nextOpen; } }
   for(const p of (state.livePlaces||[])){ const h=hd.byPlace[normalizeBrand(p.name)+"|"+(p.addr||"")]; if(h){ p.openNow=h.openNow; p.nextClose=h.nextClose; p.nextOpen=h.nextOpen; } }
   // a roll already on screen gets its hours line; an open Browse re-renders pills
-  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combo, state.lastRender.chainKey);
+  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
   if(typeof browsePanel!=="undefined" && browsePanel.classList.contains("open")) renderBrowse();
 }
 function readHrsCache(zip){
@@ -1020,6 +1043,12 @@ en:{
   statCal:"est. calories",
   statVal:"cal / dollar",
   rollAgain:"🎲 Roll again",
+  mouthsLabel:"How many mouths?",
+  mouthsFewer:"Fewer mouths",
+  mouthsMore:"More mouths",
+  personLabel:"Person {n}",
+  crewTotal:"est. total · {n} mouths",
+  pizzaScaled:"Sized up for the crew — large formats where the menu has them",
   localPick:" · local pick",
   findIt:"Find it: ",
   nearest:"Nearest: ",
@@ -1120,6 +1149,12 @@ es:{
   statCal:"calorías est.",
   statVal:"cal / dólar",
   rollAgain:"🎲 Girar de nuevo",
+  mouthsLabel:"¿Cuántas bocas?",
+  mouthsFewer:"Menos bocas",
+  mouthsMore:"Más bocas",
+  personLabel:"Persona {n}",
+  crewTotal:"total est. · {n} bocas",
+  pizzaScaled:"Tamaño grande para el equipo — formatos grandes donde el menú los tiene",
   localPick:" · lugar local",
   findIt:"Está en: ",
   nearest:"El más cercano: ",
@@ -50719,6 +50754,17 @@ function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
+/* ---- crew mode (2026-11-17): feed 1–4 mouths at one place ----
+   One roll picks ONE place (same pool/filters as today), then builds one
+   combo per mouth at that place. The count persists in localStorage
+   (gr_mouths) like the language preference. */
+const MOUTHS_KEY="gr_mouths", MOUTHS_MIN=1, MOUTHS_MAX=4;
+function loadMouths(){ let n=1; try{ n=parseInt(localStorage.getItem(MOUTHS_KEY)||"1",10); }catch(e){} if(!isFinite(n)) n=1; return Math.min(MOUTHS_MAX, Math.max(MOUTHS_MIN, n)); }
+function mouths(){ return state.mouths || MOUTHS_MIN; }
+function setMouths(n){ n=Math.min(MOUTHS_MAX, Math.max(MOUTHS_MIN, n|0)); state.mouths=n; try{ localStorage.setItem(MOUTHS_KEY, String(n)); }catch(e){} updateMouthsUI(); }
+function updateMouthsUI(){ const c=$("mouthCount"); if(c) c.textContent=String(mouths()); const mn=$("mouthMinus"), pl=$("mouthPlus"); if(mn) mn.disabled=mouths()<=MOUTHS_MIN; if(pl) pl.disabled=mouths()>=MOUTHS_MAX; }
+state.mouths=loadMouths();
+
 const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i.p*(i.qty||1),0); // null = a price is unpublished
 const cals  = items => items.reduce((s,i)=>s+i.c*(i.qty||1),0);
 const BALLIN_MIN=120; // Ballin' on a Budget floor: nothing under 120 cal per $ (Orlando, 2026-10-21)
@@ -50778,6 +50824,21 @@ function fitCalories(chainKey, picks){
 }
 
 /* ---- builders: every roll is a full meal (main + side + drink) unless a special filter says otherwise ---- */
+/* ---- pizza scaling (2026-11-17): when feeding a crew at a pizza place,
+   prefer large/family formats. A name signals one when it carries Large,
+   XL, Extra Large, Family, Party, or a 16"/18"/20" size. PREFERENCE ONLY,
+   never a hard filter: if no large format exists (or the budget/calorie
+   caps swap it out), the mouth still gets a normal combo — and a mouth
+   never ends up with no main because of it. Never invents a size: it
+   only picks among real menu items, and totals are always the sum of
+   real picked prices. */
+const LARGE_FORMAT_RE=/\b(?:large|xl|x-large|extra[\s-]?large|family|party)(?![a-z])|\b(?:16|18|20)\s*(?:in|inch|")/i;
+function isLargeFormat(item){ return !!item && LARGE_FORMAT_RE.test(item.n||""); }
+function isPizzaPlace(chain, ck){ return !!chain && (chain.cat==="pizza" || (CATEGORIES.pizza||[]).includes(ck)); }
+function pickAvoiding(pool, avoid){ // random pick minus already-used names; falls back to the full pool when everything is used
+  const rest=avoid ? pool.filter(i=>!avoid.has(i.n)) : pool;
+  return rand(rest.length?rest:pool);
+}
 function bestValue(pool){ const val=i=> i.p==null ? 0 : i.c/Math.max(i.p,.01); return [...pool].sort((a,b)=>val(b)-val(a))[0]; }
 function pickDrink(chain){
   const d=cat(chain.items,"drink");
@@ -50793,21 +50854,31 @@ function refillDrink(ck, picks){ // a real drink that still fits the caps beats 
   cands=cands.filter(i=> i.c<=head && (pt===null || cap===Infinity || i.p==null || pt+i.p<=cap));
   return cands.length ? {...rand(cands)} : {...WATER};
 }
-function buildMeal(ck, chain){
+function buildMeal(ck, chain, opts){
   const F=state.filters;
   if(!cat(chain.items,"main").length) return buildSweet(ck, chain); // sweets spot: no mains on the menu
   if(F.catering) return buildCatering(ck, chain);
   if(F.sweet || F.cats.includes("sweets")) return buildSweet(ck, chain);
   const items=chain.items;
   let main, side=null, drink;
+  // opts (crew mode only; every existing call passes none and behaves
+  // exactly as before): avoidMains = mains already served to another
+  // mouth at this place; preferLarge = pizza crew order, favor large
+  // formats. Both are preferences with full-pool fallbacks, never filters.
   if(F.ballin){
-    const bm=cat(items,"main").filter(valOK);
+    let bm=cat(items,"main").filter(valOK);
+    if(opts && opts.avoidMains){ const rest=bm.filter(m=>!opts.avoidMains.has(m.n)); if(rest.length) bm=rest; }
+    if(opts && opts.preferLarge){ const lg=bm.filter(isLargeFormat); if(lg.length) bm=lg; }
     main={...bestValue(bm.length?bm:cat(items,"main"))}; // fallback only if nothing anywhere qualifies
-    const sp=cat(items,"side").filter(valOK); if(sp.length) side={...bestValue(sp)};
+    let sp=cat(items,"side").filter(valOK);
+    if(opts && opts.preferLarge){ const lg=sp.filter(isLargeFormat); if(lg.length) sp=lg; }
+    if(sp.length) side={...bestValue(sp)};
     const dp=cat(items,"drink").filter(valOK); drink = dp.length ? {...bestValue(dp)} : {...WATER};
   } else {
-    main={...rand(cat(items,"main"))};
-    const sp=cat(items,"side"); if(sp.length && Math.random()<0.85) side={...rand(sp)};
+    let mains=cat(items,"main");
+    if(opts && opts.preferLarge){ const lg=mains.filter(isLargeFormat); if(lg.length) mains=lg; }
+    main={...pickAvoiding(mains, opts && opts.avoidMains)};
+    const sp=cat(items,"side"); if(sp.length && Math.random()<0.85){ let sides=sp; if(opts && opts.preferLarge){ const lg=sides.filter(isLargeFormat); if(lg.length) sides=lg; } side={...rand(sides)}; }
     drink=pickDrink(chain);
   }
   let picks=[main]; if(side) picks.push(side); picks.push(drink);
@@ -50838,6 +50909,26 @@ function buildCatering(ck, chain){
   picks.push({...WATER, qty:4});
   return {items:picks};
 }
+
+/* ---- crew builder: one combo per mouth at the same place ---- */
+function buildCrew(ck, chain){
+  // Catering IS the crew order (bulk, qty-multiplied) — one bundle stands;
+  // multiplying it by mouths would serve 4x a catering spread.
+  if(state.filters.catering) return [buildMeal(ck, chain)];
+  const n=mouths(), combos=[], usedMains=new Set();
+  const preferLarge=isPizzaPlace(chain, ck) && n>1; // pizza scales up, only when feeding a crew
+  for(let i=0;i<n;i++){
+    const combo=buildMeal(ck, chain, { avoidMains:usedMains, preferLarge });
+    const main=combo.items.find(x=>x.t.includes("main"));
+    if(main) usedMains.add(main.n); // next mouth gets a different main when the menu has alternatives
+    combos.push(combo);
+  }
+  return combos;
+}
+function crewScaledUp(chain, ck, combos){ // did a large format actually land in the order? (drives the "sized up" note)
+  return isPizzaPlace(chain, ck) && combos.length>1 && combos.some(cb=>cb.items.some(i=>(i.t.includes("main")||i.t.includes("side")) && isLargeFormat(i)));
+}
+function crewKey(ck, combos){ return ck+"|"+combos.map(cb=>cb.items.map(i=>(i.qty?i.qty+"x":"")+i.n).join("+")).join("||"); }
 
 /* ---- which chains can this roll pick from ---- */
 /* ---- open hours (2026-11-03): researched per-local hours; locals only ----
@@ -51109,21 +51200,36 @@ function availableChains(){
   return base;
 }
 
-/* ---- main roll ---- */
+/* ---- main roll: ONE place, one combo per mouth at that place ---- */
 let rollDepth=0;
 function roll(){
   const chainKey=rand(availableChains());
   const chain=chainObj(chainKey);
-  const combo=buildMeal(chainKey, chain);
-  const key=chainKey+"|"+combo.items.map(i=>(i.qty?i.qty+"x":"")+i.n).join("+");
+  const combos=buildCrew(chainKey, chain);
+  const key=crewKey(chainKey, combos);
   if(key===state.lastKey && rollDepth<3){ rollDepth++; return roll(); }
   rollDepth=0;
   state.lastKey=key;
-  render(chain, combo, chainKey);
-  pushHistory(chain, combo);
+  render(chain, combos, chainKey);
+  pushHistory(chain, {items:combos.flatMap(cb=>cb.items)});
+}
+function rollSamePlace(){ // Roll Again: same place, fresh combos for every mouth — FEED ME picks a new place
+  const lr=state.lastRender;
+  if(!lr || !lr.chainKey){ roll(); return; }
+  const combos=buildCrew(lr.chainKey, lr.chain);
+  const key=crewKey(lr.chainKey, combos);
+  if(key===state.lastKey && rollDepth<3){ rollDepth++; return rollSamePlace(); }
+  rollDepth=0;
+  state.lastKey=key;
+  render(lr.chain, combos, lr.chainKey);
+  pushHistory(lr.chain, {items:combos.flatMap(cb=>cb.items)});
 }
 
 function render(chain, combo, chainKey){
+  // Crew mode: combo may be one combo {items} (today's shape — the suite
+  // and 1-mouth rolls) or an array of per-mouth combos. A single combo
+  // renders EXACTLY as before: same item markup, same totals.
+  const combos=Array.isArray(combo) ? combo : [combo];
   $("rChain").textContent=chain.name + (chain.local ? t("localPick") : "");
   $("rChain").style.background=chain.color;
   const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
@@ -51153,14 +51259,22 @@ function render(chain, combo, chainKey){
     state.lastPlace = null;
     $("rMapRow").classList.remove("show");
   }
-  state.lastRender = { chain:chain, combo:combo, chainKey:chainKey };
-  $("rItems").innerHTML=combo.items.map(i=>
+  state.lastRender = { chain:chain, combos:combos, chainKey:chainKey };
+  const itemHtml = items => items.map(i=>
     `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${dispMod(i)}</span>`:""}</div>${i.p==null?"":`<div class="pr">${(i.p*(i.qty||1)).toFixed(2)}</div>`}</div>`
   ).join("");
-  const p=price(combo.items), c=cals(combo.items);
+  if(combos.length===1){
+    $("rItems").innerHTML=itemHtml(combos[0].items);
+  } else {
+    $("rItems").innerHTML=combos.map((cb,i)=>`<div class="person"><div class="personhead">${t("personLabel",{n:i+1})}</div>${itemHtml(cb.items)}</div>`).join("");
+  }
+  const allItems=combos.flatMap(cb=>cb.items);
+  const p=price(allItems), c=cals(allItems);
   $("rPrice").textContent = p===null ? t("notListed") : "$"+p.toFixed(2);
   $("rCal").textContent=c.toLocaleString();
   $("rVal").textContent = p===null ? "—" : (p>0 ? Math.round(c/p) : "∞");
+  $("statTotal").textContent = combos.length>1 ? t("crewTotal",{n:combos.length}) : t("statTotal");
+  const cn=$("rCrewNote"); if(cn) cn.textContent=crewScaledUp(chain, chainKey, combos) ? t("pizzaScaled") : "";
   $("result").classList.add("show");
   /* ratings: shared average + vote widget for this place (hidden until the
      ratings endpoint answers once); fetch this place's average now */
@@ -51251,20 +51365,23 @@ function updateSummary(){
 }
 
 $("feedme").onclick=roll;
+$("mouthMinus").onclick=()=>setMouths(mouths()-1);
+$("mouthPlus").onclick=()=>setMouths(mouths()+1);
+updateMouthsUI();
 /* Enter (desktop keyboard) / Go (mobile keyboard, via enterkeyhint="go"
    on the input) rolls the same as FEED ME. No <form> wraps the input,
    so there is no submit/reload to fight; keydown fires once per press
    and a keypress never clicks the button — no double-roll. */
 $("zip").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); roll(); } });
-$("btnAgain").onclick=roll;
+$("btnAgain").onclick=rollSamePlace;
 drawHistory();
 
 /* ---- Today's Deals (published each morning by the daily deals job as deals.json) ---- */
 function rollChain(ck){
   const chain=chainObj(ck); if(!chain) return;
-  const combo=buildMeal(ck, chain);
-  state.lastKey=ck+"|"+combo.items.map(i=>(i.qty?i.qty+"x":"")+i.n).join("+");
-  render(chain, combo, ck); pushHistory(chain, combo);
+  const combos=buildCrew(ck, chain);
+  state.lastKey=crewKey(ck, combos);
+  render(chain, combos, ck); pushHistory(chain, {items:combos.flatMap(cb=>cb.items)});
 }
 const dealsPanel=document.getElementById("dealsPanel"), dealsOverlay=document.getElementById("dealsOverlay");
 function openDeals(){ dealsPanel.classList.add("open"); dealsOverlay.classList.add("open"); loadDeals(); }
@@ -51586,6 +51703,10 @@ function applyLang(){
   if(lastNote) setZipNote(t(lastNote.key, lastNote.params));
   else if(!noteIsBlank) setZipNote(t("noteDefaultPlain"));
   S("feedme", t("feedMe"));
+  S("mouthLabel", t("mouthsLabel"));
+  $("mouthMinus").setAttribute("aria-label", t("mouthsFewer"));
+  $("mouthPlus").setAttribute("aria-label", t("mouthsMore"));
+  updateMouthsUI();
   S("statTotal", t("statTotal")); S("statCal", t("statCal")); S("statVal", t("statVal"));
   S("btnAgain", t("rollAgain"));
   S("btnMap", t("mapBtn"));
@@ -51614,7 +51735,7 @@ function applyLang(){
   $("langBtn").innerHTML = '<span class="lg'+(LANG==="en"?" on":"")+'">EN</span><span class="lg'+(LANG==="es"?" on":"")+'">ES</span>';
   updateSummary();
   drawHistory();
-  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combo, state.lastRender.chainKey);
+  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
   if(mapPanel.classList.contains("open")) fillMapPanel();
   syncBrowseBtn();
   if(browsePanel.classList.contains("open")) renderBrowse();
