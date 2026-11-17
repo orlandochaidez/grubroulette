@@ -63,7 +63,33 @@
   .person{border-top:1px dashed var(--line); padding:10px 0 2px; margin-top:6px;}
   .person:first-child{border-top:none; padding-top:0; margin-top:0;}
   .person .item:first-child{border-top:none;}
-  .personhead{font-size:12px; font-weight:800; letter-spacing:.6px; text-transform:uppercase; color:var(--acc2); margin-bottom:2px;}
+  .personhead{display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:800; letter-spacing:.6px; text-transform:uppercase; color:var(--acc2); margin-bottom:2px;}
+  /* Order model (2026-11-17): the result card is a list of place
+     sections. Extra places render as .xsec blocks (same left/right
+     split as the first section); each combo carries a small × to
+     drop it. The × sits in the personhead row (or a lone row under
+     a single combo) so the 1-mouth single-combo item markup stays
+     exactly as before. */
+  .rm{background:none; border:none; color:var(--muted); font-size:20px; line-height:1; cursor:pointer; padding:0 4px; flex:none;}
+  .rm:hover{color:var(--acc);}
+  .rmrow{text-align:right;}
+  .xsec{border-top:1px solid var(--line);}
+  .smaprow{display:none; background:var(--card2); padding:2px 16px 10px;}
+  .smaprow.show{display:block;}
+  .svote{display:none; background:var(--card2); padding:2px 16px 12px;}
+  .svote.show{display:block;}
+  .svote .ratelabel{font-size:12.5px; color:var(--muted);}
+  .svote .rstars{display:flex; gap:2px; margin-top:2px;}
+  .svote .rstar{background:none; border:none; padding:0 2px; font-size:22px; line-height:1; color:var(--muted); cursor:pointer;}
+  .svote .rstar.on{color:#ffc72c;}
+  .svote .rateyou{font-size:12px; color:var(--muted); margin-top:3px;}
+  .screwnote{font-size:12.5px; color:var(--muted); margin-top:10px;}
+  .screwnote:empty{display:none;}
+  #orderFoot{border-top:1px solid var(--line); padding:14px 16px;}
+  #orderNote{font-size:12.5px; color:var(--muted); margin-top:10px; text-align:center;}
+  #orderNote:empty{display:none;}
+  .btn:disabled{opacity:.4; cursor:default;}
+  .btn:disabled:active{transform:none;}
   #rCrewNote{font-size:12.5px; color:var(--muted); margin-top:10px;}
   #rCrewNote:empty{display:none;}
   .totals{display:flex; gap:10px; margin-top:12px;}
@@ -246,8 +272,20 @@
     #result.show{display:grid; grid-template-columns:340px minmax(0,1fr);}
     #result .rleft{grid-column:1; display:flex; flex-direction:column;}
     #result .rleft #rVote{margin-top:auto;}
-    #result .rbody{grid-column:2; grid-row:1 / -1; border-left:1px solid var(--line); padding:18px 20px; display:flex; flex-direction:column;}
+    #result .rbody{grid-column:2; grid-row:1; border-left:1px solid var(--line); padding:18px 20px; display:flex; flex-direction:column;}
     #result .rbody #rItems{flex:1;}
+    /* Order model: extra place sections + the order footer own grid
+       rows 2+ (the first section's rbody spans row 1 only now); each
+       extra section repeats the 340px / wide split. */
+    #extraSections{grid-column:1 / -1;}
+    #orderFoot{grid-column:1 / -1;}
+    .xsec{display:grid; grid-template-columns:340px minmax(0,1fr);}
+    .xsec .rleft{grid-column:1;}
+    .xsec .rleft .svote{margin-top:auto;}
+    .xsec .rbody{grid-column:2; border-left:1px solid var(--line); padding:18px 20px; display:flex; flex-direction:column;}
+    .xsec .rbody .sitems{flex:1;}
+    .xsec .sitems{display:grid; grid-template-columns:1fr 1fr; gap:0 28px; align-content:start;}
+    .xsec .sitems .person{min-width:0;}
     #rItems{display:grid; grid-template-columns:1fr 1fr; gap:0 28px; align-content:start;}
     #rItems .item{min-width:0;}
     #rItems .person{min-width:0;}
@@ -306,7 +344,18 @@
       </div>
       <div class="actions">
         <button class="btn" id="btnAgain">🎲 Roll again</button>
+        <button class="btn" id="btnAddSame" type="button">+ Another from here</button>
       </div>
+    </div>
+    <div id="extraSections"></div>
+    <div id="orderFoot" style="display:none">
+      <div class="totals" id="grandTotals" style="display:none">
+        <div class="stat"><b id="gPrice"></b><span id="gStatTotal">grand total</span></div>
+        <div class="stat"><b id="gCal"></b><span id="gStatCal">est. calories</span></div>
+        <div class="stat"><b id="gVal"></b><span id="gStatVal">cal / dollar</span></div>
+      </div>
+      <div class="actions"><button class="btn" id="btnAddDiff" type="button">+ Another place</button></div>
+      <div id="orderNote"></div>
     </div>
   </div>
 
@@ -867,7 +916,8 @@ function applyHoursData(hd){
   if(state.nearest) for(const k of Object.keys(state.nearest)){ const h=hd.byKey[k]; if(h){ state.nearest[k].openNow=h.openNow; state.nearest[k].nextClose=h.nextClose; state.nearest[k].nextOpen=h.nextOpen; } }
   for(const p of (state.livePlaces||[])){ const h=hd.byPlace[normalizeBrand(p.name)+"|"+(p.addr||"")]; if(h){ p.openNow=h.openNow; p.nextClose=h.nextClose; p.nextOpen=h.nextOpen; } }
   // a roll already on screen gets its hours line; an open Browse re-renders pills
-  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
+  if(state.order && state.order.length && $("result").classList.contains("show")) renderOrder(false);
+  else if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
   if(typeof browsePanel!=="undefined" && browsePanel.classList.contains("open")) renderBrowse();
 }
 function readHrsCache(zip){
@@ -1049,6 +1099,14 @@ en:{
   personLabel:"Person {n}",
   crewTotal:"est. total · {n} mouths",
   pizzaScaled:"Sized up for the crew — large formats where the menu has them",
+  addSame:"+ Another from here",
+  addDiff:"+ Another place",
+  subTotal:"subtotal",
+  subTotalCrew:"subtotal · {n} mouths",
+  grandTotal:"grand total",
+  noMorePlaces:"No more places to add in this area",
+  orderCap:"Order's full — 4 places, 8 combos max",
+  removeCombo:"Remove this combo",
   localPick:" · local pick",
   findIt:"Find it: ",
   nearest:"Nearest: ",
@@ -1155,6 +1213,14 @@ es:{
   personLabel:"Persona {n}",
   crewTotal:"total est. · {n} bocas",
   pizzaScaled:"Tamaño grande para el equipo — formatos grandes donde el menú los tiene",
+  addSame:"+ Otro de aquí",
+  addDiff:"+ Otro lugar",
+  subTotal:"subtotal",
+  subTotalCrew:"subtotal · {n} bocas",
+  grandTotal:"total general",
+  noMorePlaces:"No hay más lugares para agregar en esta zona",
+  orderCap:"Pedido completo — máx. 4 lugares y 8 combos",
+  removeCombo:"Quitar este combo",
   localPick:" · lugar local",
   findIt:"Está en: ",
   nearest:"El más cercano: ",
@@ -50751,7 +50817,7 @@ function buildLocalChains(spots){
 function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.chains; LOCAL_BY_ZIP=r.byZip; LOCAL_BY_CITY=r.byCity; }
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
-const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
+const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, order:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
   filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
 /* ---- crew mode (2026-11-17): feed 1–4 mouths at one place ----
@@ -50911,11 +50977,12 @@ function buildCatering(ck, chain){
 }
 
 /* ---- crew builder: one combo per mouth at the same place ---- */
-function buildCrew(ck, chain){
+function buildCrew(ck, chain, n){
   // Catering IS the crew order (bulk, qty-multiplied) — one bundle stands;
   // multiplying it by mouths would serve 4x a catering spread.
   if(state.filters.catering) return [buildMeal(ck, chain)];
-  const n=mouths(), combos=[], usedMains=new Set();
+  if(n==null) n=mouths(); // per-section re-rolls pass the section's own combo count
+  const combos=[], usedMains=new Set();
   const preferLarge=isPizzaPlace(chain, ck) && n>1; // pizza scales up, only when feeding a crew
   for(let i=0;i<n;i++){
     const combo=buildMeal(ck, chain, { avoidMains:usedMains, preferLarge });
@@ -51095,6 +51162,7 @@ async function fetchRatings(ids){
 }
 function refreshRatingsUI(){
   drawResultRatings();
+  drawExtraRatings();
   refreshBrowseRatings();
 }
 function refreshBrowseRatings(){
@@ -51107,13 +51175,11 @@ function refreshBrowseRatings(){
   }
 }
 function currentRatingId(){
-  const lr=state.lastRender; if(!lr) return null;
-  return lr.chain.local ? ratingIdFor(lr.chain) : ratingIdFor({chainKey:lr.chainKey});
+  const sec=state.order && state.order[0]; if(!sec) return null;
+  return sectionRatingId(sec);
 }
-function drawResultRatings(){
-  const rr=$("rRate"), vv=$("rVote");
+function fillRatings(rr, vv, rid){
   if(!rr || !vv) return;
-  const rid=currentRatingId();
   if(!rid || !RATINGS_OK){
     rr.textContent=""; rr.classList.remove("show");
     vv.innerHTML=""; vv.classList.remove("show");
@@ -51131,6 +51197,17 @@ function drawResultRatings(){
   vv.innerHTML=html;
   vv.querySelectorAll(".rstar").forEach(b=>{ b.onclick=()=>submitRating(rid, +b.dataset.n); });
   vv.classList.add("show");
+}
+function drawResultRatings(){
+  fillRatings($("rRate"), $("rVote"), currentRatingId());
+}
+function drawExtraRatings(){
+  /* extra order sections carry their rating id on data-rid; redraw each
+     section's average + vote widget from the session cache */
+  document.querySelectorAll("#extraSections .xsec").forEach(secEl=>{
+    const rateEl=secEl.querySelector(".srate"), voteEl=secEl.querySelector(".svote");
+    if(rateEl && voteEl) fillRatings(rateEl, voteEl, secEl.dataset.rid || null);
+  });
 }
 async function submitRating(placeId, stars){
   stars=Math.round(Number(stars)||0);
@@ -51213,16 +51290,221 @@ function roll(){
   render(chain, combos, chainKey);
   pushHistory(chain, {items:combos.flatMap(cb=>cb.items)});
 }
-function rollSamePlace(){ // Roll Again: same place, fresh combos for every mouth — FEED ME picks a new place
-  const lr=state.lastRender;
-  if(!lr || !lr.chainKey){ roll(); return; }
-  const combos=buildCrew(lr.chainKey, lr.chain);
-  const key=crewKey(lr.chainKey, combos);
-  if(key===state.lastKey && rollDepth<3){ rollDepth++; return rollSamePlace(); }
+function rollSamePlace(){ rerollSection(0); } // Roll Again: same place, fresh combos for every mouth — FEED ME picks a new place
+
+/* ---- order model (2026-11-17): the result card is an ORDER — a list of
+   place sections, each with its combos. FEED ME / Roll-this start a new
+   order (one place); "+ Another from here" adds one combo at a place
+   already on the order; "+ Another place" adds one combo from a new
+   place. Caps keep the card sane: 4 places, 8 combos. Catering is one
+   bulk bundle, so the add buttons hide while it is on. */
+const MAX_ORDER_PLACES=4, MAX_ORDER_COMBOS=8;
+function orderComboCount(){ return (state.order||[]).reduce((n,s)=>n+s.combos.length,0); }
+function sectionTotals(sec){ const items=sec.combos.flatMap(cb=>cb.items); return {price:price(items), cals:cals(items)}; }
+function orderTotals(){ const items=(state.order||[]).flatMap(s=>s.combos).flatMap(cb=>cb.items); return {price:price(items), cals:cals(items)}; }
+function sectionRatingId(sec){ return sec.chain.local ? ratingIdFor(sec.chain) : ratingIdFor({chainKey:sec.chainKey}); }
+function comboKey(cb){ return cb.items.map(i=>(i.qty?i.qty+"x":"")+i.n).join("+"); }
+/* Button state, pure so the suite can pin it: catering hides the adds;
+   the different-place add also needs a pool place not already ordered. */
+function addSameState(){
+  if(state.filters.catering) return {disabled:true, reason:"catering"};
+  if(orderComboCount()>=MAX_ORDER_COMBOS) return {disabled:true, reason:"cap"};
+  return {disabled:false, reason:null};
+}
+function addDiffState(){
+  if(state.filters.catering) return {disabled:true, reason:"catering"};
+  if((state.order||[]).length>=MAX_ORDER_PLACES || orderComboCount()>=MAX_ORDER_COMBOS) return {disabled:true, reason:"cap"};
+  const have=new Set((state.order||[]).map(s=>s.chainKey));
+  if(!availableChains().some(k=>!have.has(k))) return {disabled:true, reason:"exhausted"};
+  return {disabled:false, reason:null};
+}
+function addSamePlace(idx){
+  const order=state.order; if(!order || !order[idx]) return null;
+  if(addSameState().disabled) return null;
+  const sec=order[idx];
+  const used=new Set(sec.combos.flatMap(cb=>cb.items.filter(i=>i.t.includes("main")).map(i=>i.n)));
+  // pizza scales per place: once a pizza place has >1 combo in the order,
+  // the next combo prefers large formats (generalizes the crew rule)
+  const preferLarge=isPizzaPlace(sec.chain, sec.chainKey) && (sec.combos.length+1)>1;
+  let cb=null;
+  for(let tries=0; tries<4; tries++){
+    const cand=buildMeal(sec.chainKey, sec.chain, {avoidMains:used, preferLarge});
+    if(!sec.combos.some(c=>comboKey(c)===comboKey(cand))){ cb=cand; break; }
+    cb=cand;
+  }
+  sec.combos.push(cb);
+  state.lastKey=crewKey(sec.chainKey, sec.combos);
+  if(idx===0) state.lastRender={chain:sec.chain, combos:sec.combos, chainKey:sec.chainKey};
+  renderOrder();
+  pushHistory(sec.chain, {items:cb.items});
+  return cb;
+}
+function addDifferentPlace(){
+  const order=state.order; if(!order || !order.length) return null;
+  if(addDiffState().disabled) return null;
+  const have=new Set(order.map(s=>s.chainKey));
+  const pool=availableChains().filter(k=>!have.has(k));
+  if(!pool.length) return null;
+  const ck=rand(pool);
+  const chain=chainObj(ck); if(!chain) return null;
+  const combo=buildMeal(ck, chain); // exactly one combo, same filters as the initial roll
+  order.push({chain:chain, chainKey:ck, combos:[combo]});
+  state.lastKey=crewKey(ck, [combo]);
+  renderOrder();
+  pushHistory(chain, {items:combo.items});
+  return combo;
+}
+function removeCombo(si, ci){
+  const order=state.order; if(!order || !order[si]) return false;
+  const sec=order[si];
+  if(ci<0 || ci>=sec.combos.length) return false;
+  sec.combos.splice(ci,1);
+  if(!sec.combos.length) order.splice(si,1);
+  if(!order.length){
+    state.order=null; state.lastRender=null; state.lastPlace=null;
+    renderOrder();
+    return true;
+  }
+  state.lastRender={chain:order[0].chain, combos:order[0].combos, chainKey:order[0].chainKey};
+  renderOrder();
+  return true;
+}
+function rerollSection(idx){
+  const sec=state.order && state.order[idx];
+  if(!sec){ roll(); return; }
+  const combos=buildCrew(sec.chainKey, sec.chain, sec.combos.length);
+  const key=crewKey(sec.chainKey, combos);
+  if(key===state.lastKey && rollDepth<3){ rollDepth++; return rerollSection(idx); }
   rollDepth=0;
   state.lastKey=key;
-  render(lr.chain, combos, lr.chainKey);
-  pushHistory(lr.chain, {items:combos.flatMap(cb=>cb.items)});
+  sec.combos=combos;
+  if(idx===0) state.lastRender={chain:sec.chain, combos:combos, chainKey:sec.chainKey};
+  renderOrder();
+  pushHistory(sec.chain, {items:combos.flatMap(cb=>cb.items)});
+}
+function openMapFor(si){
+  const sec=state.order && state.order[si]; if(!sec) return;
+  state.lastPlace=placeForMap(sec.chain, sec.chainKey);
+  openMap();
+}
+
+/* Per-place header facts, shared by the first section and extra sections. */
+function locTextFor(chain, chainKey){
+  const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
+  if(chain.local && chain.addr) return {text:t("findIt") + chain.addr, show:true};
+  if(loc) return {text:t("nearest") + (loc.addr ? loc.addr : loc.name) + " · " + (loc.dist<0.1 ? t("rightHere") : t("distAway", {d:loc.dist.toFixed(1)})), show:true};
+  return {text:"", show:false};
+}
+function hoursTextFor(chain, chainKey){
+  /* hours line: locals show researched hours; live-matched chains show
+     Google's open state for the matched location when it is known */
+  const hl = chain.local ? hoursLine(chain) : liveHoursLine(chainKey);
+  return hl ? {text:hl, show:true} : {text:"", show:false};
+}
+function placeForMap(chain, chainKey){
+  /* the place the map panel will show (coords when the live result carries them) */
+  const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
+  if(chain.local && chain.addr) return { name:chain.name, addr:chain.addr, city:chain.city||"", st:chain.st||"", zip:(chain.zips&&chain.zips[0])||"", lat:(chain.lat!=null?chain.lat:null), lon:(chain.lon!=null?chain.lon:null) };
+  if(loc) return { name:chain.name, addr:loc.addr||"", city:state.city||"", st:"", zip:state.zip||"", lat:(loc.lat!=null?loc.lat:null), lon:(loc.lon!=null?loc.lon:null) };
+  return null;
+}
+function itemHtml(items){ return items.map(i=>
+  `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${dispMod(i)}</span>`:""}</div>${i.p==null?"":`<div class="pr">${(i.p*(i.qty||1)).toFixed(2)}</div>`}</div>`
+).join(""); }
+function rmBtnHtml(si, ci){ return `<button type="button" class="rm" data-act="remove" data-si="${si}" data-ci="${ci}" aria-label="${escHtml(t("removeCombo"))}">×</button>`; }
+
+function renderFirstSection(sec){
+  const chain=sec.chain, chainKey=sec.chainKey, combos=sec.combos;
+  $("rChain").textContent=chain.name + (chain.local ? t("localPick") : "");
+  $("rChain").style.background=chain.color;
+  const loc=locTextFor(chain, chainKey);
+  $("rLoc").textContent=loc.text; $("rLoc").classList.toggle("show", loc.show);
+  const hl=hoursTextFor(chain, chainKey);
+  $("rHours").textContent=hl.text; $("rHours").classList.toggle("show", hl.show);
+  state.lastPlace=placeForMap(chain, chainKey);
+  $("rMapRow").classList.toggle("show", !!state.lastPlace);
+  if(combos.length===1){
+    $("rItems").innerHTML=itemHtml(combos[0].items)+`<div class="rmrow">${rmBtnHtml(0,0)}</div>`;
+  } else {
+    $("rItems").innerHTML=combos.map((cb,i)=>`<div class="person"><div class="personhead"><span>${t("personLabel",{n:i+1})}</span>${rmBtnHtml(0,i)}</div>${itemHtml(cb.items)}</div>`).join("");
+  }
+  const tot=sectionTotals(sec);
+  $("rPrice").textContent = tot.price===null ? t("notListed") : "$"+tot.price.toFixed(2);
+  $("rCal").textContent=tot.cals.toLocaleString();
+  $("rVal").textContent = tot.price===null ? "—" : (tot.price>0 ? Math.round(tot.cals/tot.price) : "∞");
+  const multi=(state.order||[]).length>1;
+  $("statTotal").textContent = multi ? (combos.length>1 ? t("subTotalCrew",{n:combos.length}) : t("subTotal")) : (combos.length>1 ? t("crewTotal",{n:combos.length}) : t("statTotal"));
+  const cn=$("rCrewNote"); if(cn) cn.textContent=crewScaledUp(chain, chainKey, combos) ? t("pizzaScaled") : "";
+  const as=addSameState(), ba=$("btnAddSame");
+  if(ba){ ba.style.display=state.filters.catering?"none":""; ba.disabled=as.disabled; }
+}
+function sectionHtml(sec, idx){
+  const chain=sec.chain, chainKey=sec.chainKey, combos=sec.combos;
+  const loc=locTextFor(chain, chainKey), hl=hoursTextFor(chain, chainKey);
+  const place=placeForMap(chain, chainKey);
+  const tot=sectionTotals(sec);
+  const rid=sectionRatingId(sec);
+  const itemsHtml = combos.length===1
+    ? itemHtml(combos[0].items)+`<div class="rmrow">${rmBtnHtml(idx,0)}</div>`
+    : combos.map((cb,i)=>`<div class="person"><div class="personhead"><span>${t("personLabel",{n:i+1})}</span>${rmBtnHtml(idx,i)}</div>${itemHtml(cb.items)}</div>`).join("");
+  return `<section class="xsec" data-ck="${escHtml(chainKey)}" data-rid="${escHtml(rid||"")}">`
+    +`<div class="rleft">`
+    +`<div class="chainbar" style="background:${escHtml(chain.color||"#333")}">${escHtml(chain.name)}${chain.local?escHtml(t("localPick")):""}</div>`
+    +`<div class="locbar${loc.show?" show":""}">${escHtml(loc.text)}</div>`
+    +`<div class="locbar${hl.show?" show":""}">${escHtml(hl.text)}</div>`
+    +`<div class="locbar srate"></div>`
+    +`<div class="svote"></div>`
+    +`<div class="smaprow${place?" show":""}"><button class="mapbtn" type="button" data-act="map" data-si="${idx}">${escHtml(t("mapBtn"))}</button></div>`
+    +`</div>`
+    +`<div class="rbody"><div class="sitems">${itemsHtml}</div>`
+    +`<div class="screwnote">${crewScaledUp(chain, chainKey, combos)?escHtml(t("pizzaScaled")):""}</div>`
+    +`<div class="totals"><div class="stat"><b>${tot.price===null?escHtml(t("notListed")):"$"+tot.price.toFixed(2)}</b><span>${escHtml(combos.length>1?t("subTotalCrew",{n:combos.length}):t("subTotal"))}</span></div>`
+    +`<div class="stat"><b>${tot.cals.toLocaleString()}</b><span>${escHtml(t("statCal"))}</span></div>`
+    +`<div class="stat"><b>${tot.price===null?"—":(tot.price>0?Math.round(tot.cals/tot.price):"∞")}</b><span>${escHtml(t("statVal"))}</span></div></div>`
+    +`<div class="actions"><button class="btn" type="button" data-act="again" data-si="${idx}">${escHtml(t("rollAgain"))}</button><button class="btn" type="button" data-act="addsame" data-si="${idx}">${escHtml(t("addSame"))}</button></div>`
+    +`</div></section>`;
+}
+function updateOrderFoot(){
+  const foot=$("orderFoot"); if(!foot) return;
+  const order=state.order;
+  if(!order || !order.length){ foot.style.display="none"; return; }
+  const multi=order.length>1;
+  const gt=$("grandTotals");
+  if(multi){
+    const tot=orderTotals();
+    $("gPrice").textContent=tot.price===null?t("notListed"):"$"+tot.price.toFixed(2);
+    $("gCal").textContent=tot.cals.toLocaleString();
+    $("gVal").textContent=tot.price===null?"—":(tot.price>0?Math.round(tot.cals/tot.price):"∞");
+    $("gStatTotal").textContent=t("grandTotal");
+    gt.style.display="";
+  } else gt.style.display="none";
+  const ds=addDiffState();
+  const bd=$("btnAddDiff");
+  bd.style.display=state.filters.catering?"none":"";
+  bd.disabled=ds.disabled;
+  $("orderNote").textContent = ds.disabled && ds.reason==="cap" ? t("orderCap") : ds.disabled && ds.reason==="exhausted" ? t("noMorePlaces") : "";
+  foot.style.display=(state.filters.catering && !multi)?"none":"";
+}
+function renderOrder(scroll){
+  const order=state.order;
+  const res=$("result");
+  if(!order || !order.length){
+    res.classList.remove("show");
+    $("extraSections").innerHTML="";
+    updateOrderFoot();
+    return;
+  }
+  renderFirstSection(order[0]);
+  $("extraSections").innerHTML=order.slice(1).map((sec,i)=>sectionHtml(sec,i+1)).join("");
+  updateOrderFoot();
+  state.lastRender={chain:order[0].chain, combos:order[0].combos, chainKey:order[0].chainKey};
+  /* ratings: shared average + vote widget per place (hidden until the
+     ratings endpoint answers once); fetch every place's average now */
+  drawResultRatings();
+  drawExtraRatings();
+  scheduleRatingsFetch(order.map(sectionRatingId));
+  res.classList.add("show");
+  if(scroll!==false) res.scrollIntoView({behavior:"smooth", block:"nearest"});
 }
 
 function render(chain, combo, chainKey){
@@ -51230,57 +51512,8 @@ function render(chain, combo, chainKey){
   // and 1-mouth rolls) or an array of per-mouth combos. A single combo
   // renders EXACTLY as before: same item markup, same totals.
   const combos=Array.isArray(combo) ? combo : [combo];
-  $("rChain").textContent=chain.name + (chain.local ? t("localPick") : "");
-  $("rChain").style.background=chain.color;
-  const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
-  if(chain.local && chain.addr){
-    $("rLoc").textContent = t("findIt") + chain.addr;
-    $("rLoc").classList.add("show");
-  } else if(loc){
-    $("rLoc").textContent = t("nearest") + (loc.addr ? loc.addr : loc.name) + " · " + (loc.dist<0.1 ? t("rightHere") : t("distAway", {d:loc.dist.toFixed(1)}));
-    $("rLoc").classList.add("show");
-  } else {
-    $("rLoc").textContent = "";
-    $("rLoc").classList.remove("show");
-  }
-  /* hours line: locals show researched hours; live-matched chains show
-     Google's open state for the matched location when it is known */
-  const hl = chain.local ? hoursLine(chain) : liveHoursLine(chainKey);
-  if(hl){ $("rHours").textContent=hl; $("rHours").classList.add("show"); }
-  else { $("rHours").textContent=""; $("rHours").classList.remove("show"); }
-  /* map button + the place the map panel will show (coords when the live result carries them) */
-  if(chain.local && chain.addr){
-    state.lastPlace = { name:chain.name, addr:chain.addr, city:chain.city||"", st:chain.st||"", zip:(chain.zips&&chain.zips[0])||"", lat:(chain.lat!=null?chain.lat:null), lon:(chain.lon!=null?chain.lon:null) };
-    $("rMapRow").classList.add("show");
-  } else if(loc){
-    state.lastPlace = { name:chain.name, addr:loc.addr||"", city:state.city||"", st:"", zip:state.zip||"", lat:(loc.lat!=null?loc.lat:null), lon:(loc.lon!=null?loc.lon:null) };
-    $("rMapRow").classList.add("show");
-  } else {
-    state.lastPlace = null;
-    $("rMapRow").classList.remove("show");
-  }
-  state.lastRender = { chain:chain, combos:combos, chainKey:chainKey };
-  const itemHtml = items => items.map(i=>
-    `<div class="item"><div>${i.qty&&i.qty>1?`<span class="qty">${i.qty} × </span>`:""}${i.n}${i.mod?`<span class="mod">↳ ${dispMod(i)}</span>`:""}</div>${i.p==null?"":`<div class="pr">${(i.p*(i.qty||1)).toFixed(2)}</div>`}</div>`
-  ).join("");
-  if(combos.length===1){
-    $("rItems").innerHTML=itemHtml(combos[0].items);
-  } else {
-    $("rItems").innerHTML=combos.map((cb,i)=>`<div class="person"><div class="personhead">${t("personLabel",{n:i+1})}</div>${itemHtml(cb.items)}</div>`).join("");
-  }
-  const allItems=combos.flatMap(cb=>cb.items);
-  const p=price(allItems), c=cals(allItems);
-  $("rPrice").textContent = p===null ? t("notListed") : "$"+p.toFixed(2);
-  $("rCal").textContent=c.toLocaleString();
-  $("rVal").textContent = p===null ? "—" : (p>0 ? Math.round(c/p) : "∞");
-  $("statTotal").textContent = combos.length>1 ? t("crewTotal",{n:combos.length}) : t("statTotal");
-  const cn=$("rCrewNote"); if(cn) cn.textContent=crewScaledUp(chain, chainKey, combos) ? t("pizzaScaled") : "";
-  $("result").classList.add("show");
-  /* ratings: shared average + vote widget for this place (hidden until the
-     ratings endpoint answers once); fetch this place's average now */
-  drawResultRatings();
-  scheduleRatingsFetch([currentRatingId()]);
-  $("result").scrollIntoView({behavior:"smooth", block:"nearest"});
+  state.order=[{chain:chain, chainKey:chainKey, combos:combos}];
+  renderOrder(true);
 }
 
 /* ---- history (localStorage) ---- */
@@ -51374,6 +51607,22 @@ updateMouthsUI();
    and a keypress never clicks the button — no double-roll. */
 $("zip").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); roll(); } });
 $("btnAgain").onclick=rollSamePlace;
+$("btnAddSame").onclick=()=>addSamePlace(0);
+$("btnAddDiff").onclick=addDifferentPlace;
+/* Order card delegation: extra sections are rebuilt on every render, so
+   their buttons (Roll again / + Another from here / Map) and every
+   combo's × report through one listener on #result. Static buttons keep
+   their direct wiring (btnAgain's line is pinned by the suite). */
+$("result").addEventListener("click", e=>{
+  const b=e.target && e.target.closest ? e.target.closest("[data-act]") : null;
+  if(!b) return;
+  const si=+b.dataset.si;
+  if(b.dataset.act==="again") rerollSection(si);
+  else if(b.dataset.act==="addsame") addSamePlace(si);
+  else if(b.dataset.act==="adddiff") addDifferentPlace();
+  else if(b.dataset.act==="remove") removeCombo(si, +b.dataset.ci);
+  else if(b.dataset.act==="map") openMapFor(si);
+});
 drawHistory();
 
 /* ---- Today's Deals (published each morning by the daily deals job as deals.json) ---- */
@@ -51709,6 +51958,8 @@ function applyLang(){
   updateMouthsUI();
   S("statTotal", t("statTotal")); S("statCal", t("statCal")); S("statVal", t("statVal"));
   S("btnAgain", t("rollAgain"));
+  S("btnAddSame", t("addSame")); S("btnAddDiff", t("addDiff"));
+  S("gStatTotal", t("grandTotal")); S("gStatCal", t("statCal")); S("gStatVal", t("statVal"));
   S("btnMap", t("mapBtn"));
   S("footLine1", t("footLine1")); S("footLine2", t("footLine2")); S("clearHist", t("clearHistory"));
   S("drawerTitle", t("filtersTitle"));
@@ -51735,7 +51986,8 @@ function applyLang(){
   $("langBtn").innerHTML = '<span class="lg'+(LANG==="en"?" on":"")+'">EN</span><span class="lg'+(LANG==="es"?" on":"")+'">ES</span>';
   updateSummary();
   drawHistory();
-  if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
+  if(state.order && state.order.length && $("result").classList.contains("show")) renderOrder(false);
+  else if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
   if(mapPanel.classList.contains("open")) fillMapPanel();
   syncBrowseBtn();
   if(browsePanel.classList.contains("open")) renderBrowse();
