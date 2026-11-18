@@ -174,6 +174,11 @@
   #rVote .rateyou{font-size:12px; color:var(--muted); margin-top:3px;}
   .brate{font-size:12.5px; color:var(--muted); margin-top:2px;}
   .brate:empty{display:none;}
+  /* Google ratings (2026-11-17, Worker v5.2): secondary "Google 4.6★ (1.2k)"
+     line under our own user rating — hidden entirely when no cached
+     Google rating exists for the place. Same size/muted treatment as .brate. */
+  .bggl{font-size:12.5px; color:var(--muted); margin-top:2px;}
+  .bggl:empty{display:none;}
   /* Language toggle — fixed top-right pill, mirrors the top-left hamburger */
   #langBtn{position:fixed; top:16px; right:16px; z-index:35; display:flex; gap:2px; align-items:center; background:var(--card2); border:1px solid var(--line); border-radius:999px; padding:5px 7px; cursor:pointer; font-size:12px; font-weight:800; color:var(--muted); box-shadow:0 4px 14px rgba(0,0,0,.18);}
   #langBtn .lg{padding:2px 7px; border-radius:999px; line-height:1.2;}
@@ -331,6 +336,7 @@
       <div class="locbar" id="rLoc"></div>
       <div class="locbar" id="rHours"></div>
       <div class="locbar" id="rRate"></div>
+      <div class="locbar" id="rGoogle"></div>
       <div id="rVote"></div>
       <div id="rMapRow"><button class="mapbtn" id="btnMap" type="button">📍 Map</button></div>
     </div>
@@ -1079,6 +1085,7 @@ function applyLive(zip, rec){
     if(hh) applyHoursData(hh);
     if(state.filters.openNow || state.filters.openLate) ensureLiveHours();
     ensureGoogleHoursCache(); // Google-hours fallback for locals without researched hours (one D1 read, zero Google cost; silent no-op on a v4 Worker)
+    ensureGoogleRatings(); // Google ratings for this area's locals (one D1 read, zero Google cost; silent no-op on a pre-v5.2 Worker)
   }
 }
 async function lookupZip(zip){
@@ -51348,6 +51355,10 @@ function refreshBrowseRatings(){
       const rec=RATINGS[el.dataset.rid];
       el.textContent=rec ? ratingCompact(rec) : "";
     });
+    list.querySelectorAll(".bggl").forEach(el=>{
+      const rec=GOOGLE_RATINGS[el.dataset.rid];
+      el.textContent=grFresh(rec)?googleRatingCompact(rec):"";
+    });
   }
 }
 function currentRatingId(){
@@ -51397,6 +51408,100 @@ async function submitRating(placeId, stars){
     refreshRatingsUI();
     return RATINGS[placeId]||null;
   }catch(e){ /* offline / pre-ratings Worker: vote silently dropped, nothing breaks */ return null; }
+}
+
+/* ---- Google ratings (2026-11-17, Worker v5.2): secondary "Google 4.6★ (1.2k)"
+   line under our own user rating, on the result card + Browse cards ----
+   The Worker keeps a rolling cache of Google ratings (D1 table
+   google_ratings_cache, rows fresh for 30 days max per Google's terms)
+   and serves it at GET /google-ratings?keys=... — one cheap D1 read, zero
+   Google cost. LOCALS ONLY: chains are brands (one rating per chain
+   would be meaningless per store) and live places are transient.
+   Our user-rating widget stays PRIMARY; the Google line is secondary
+   text below it and hides entirely when no fresh row exists. No rating
+   is ever invented — a missing/stale row means no line, never a guess.
+   The review-count format (1.2k) is code, not a string, so no new
+   STRINGS keys were needed ("Google" is a proper noun). If the endpoint
+   is missing (pre-v5.2 Worker) or the fetch fails, everything degrades
+   SILENTLY to today's behavior — the app push is safe BEFORE Orlando
+   pastes v5.2. */
+let GOOGLE_RATINGS={}; // local: id -> {rating, reviewCount, fetchedAt}, in-memory session cache
+function grFresh(rec){ return rec && typeof rec.rating==="number" && (Date.now()-(rec.fetchedAt||0)) <= GH_TTL_MS; }
+function googleRatingFor(co){
+  if(!co || !co.local) return null; // locals only
+  const rec=GOOGLE_RATINGS[ratingIdFor(co)];
+  return grFresh(rec)?rec:null;
+}
+function fmtGoogleCount(n){
+  n=Math.round(Number(n)||0);
+  if(n>=1000) return (n/1000).toFixed(1).replace(/\.0$/,"")+"k";
+  return String(n);
+}
+function googleRatingLine(rec){
+  if(!rec || typeof rec.rating!=="number") return null;
+  return "Google "+rec.rating.toFixed(1)+"★"+(typeof rec.reviewCount==="number" && rec.reviewCount>0 ? " ("+fmtGoogleCount(rec.reviewCount)+")" : "");
+}
+function googleRatingCompact(rec){ return googleRatingLine(rec) || ""; }
+function fillGoogleRating(el, rid){
+  if(!el) return;
+  const rec=(rid && GOOGLE_RATINGS[rid]) || null;
+  const line=grFresh(rec)?googleRatingLine(rec):null;
+  el.textContent=line||"";
+  el.classList.toggle("show", !!line);
+}
+function drawResultGoogle(){ fillGoogleRating($("rGoogle"), currentRatingId()); }
+function drawExtraGoogle(){
+  /* extra order sections carry their rating id on data-rid; redraw each
+     section's Google line from the session cache */
+  document.querySelectorAll("#extraSections .xsec").forEach(secEl=>{
+    fillGoogleRating(secEl.querySelector(".sgrate"), secEl.dataset.rid || null);
+  });
+}
+function drawGoogleRatings(){ drawResultGoogle(); drawExtraGoogle(); }
+function refreshBrowseGoogleRatings(){
+  if(typeof browsePanel!=="undefined" && browsePanel.classList.contains("open") && browseView==="list"){
+    const list=$("browseList"); if(!list) return;
+    list.querySelectorAll(".bggl").forEach(el=>{
+      const rec=GOOGLE_RATINGS[el.dataset.rid];
+      el.textContent=grFresh(rec)?googleRatingCompact(rec):"";
+    });
+  }
+}
+function refreshGoogleRatingsUI(){ drawGoogleRatings(); refreshBrowseGoogleRatings(); }
+// test seam: GRUB_TEST.googleRatingsTransport, when set, replaces fetch for /google-ratings calls
+function googleRatingsFetch(url){
+  const tr=(typeof GRUB_TEST!=="undefined" && GRUB_TEST.googleRatingsTransport) || null;
+  return tr ? tr(url) : fetch(url);
+}
+let grFetchFor=""; // area guard: one ratings fetch per area per session
+async function ensureGoogleRatings(){
+  try{
+    if(!state.area || !state.zip) return;
+    const fk=state.zip+"|"+[...areaCities()].sort().join(",");
+    if(grFetchFor===fk) return;
+    grFetchFor=fk;
+    // this area's locals only — chains are brands, live places transient
+    const keys=[];
+    for(const k of browseLocalKeys()){
+      const co=chainObj(k); if(!co||!co.local) continue;
+      const id=ratingIdFor(co); if(id) keys.push(id);
+    }
+    const uniq=[...new Set(keys)].slice(0,100);
+    if(!uniq.length) return;
+    let data;
+    try{
+      const r=await googleRatingsFetch(GOOGLE_WORKER+"/google-ratings?keys="+uniq.map(encodeURIComponent).join(","));
+      if(!r.ok) return; // pre-v5.2 Worker (no endpoint) / offline: silent, today's behavior
+      data=await r.json();
+    }catch(e){ return; }
+    let changed=false;
+    for(const id of Object.keys(data||{})){
+      const v=data[id]; if(!v || typeof v.rating!=="number") continue;
+      GOOGLE_RATINGS[id]={rating:v.rating, reviewCount:(typeof v.reviewCount==="number"?v.reviewCount:null), fetchedAt:(typeof v.fetchedAt==="number"?v.fetchedAt:0)};
+      changed=true;
+    }
+    if(changed) refreshGoogleRatingsUI();
+  }catch(e){}
 }
 
 function availableChains(){
@@ -51641,6 +51746,7 @@ function sectionHtml(sec, idx){
     +`<div class="locbar${loc.show?" show":""}">${escHtml(loc.text)}</div>`
     +`<div class="locbar${hl.show?" show":""}">${escHtml(hl.text)}</div>`
     +`<div class="locbar srate"></div>`
+    +`<div class="locbar sgrate"></div>`
     +`<div class="svote"></div>`
     +`<div class="smaprow${place?" show":""}"><button class="mapbtn" type="button" data-act="map" data-si="${idx}">${escHtml(t("mapBtn"))}</button></div>`
     +`</div>`
@@ -51690,6 +51796,7 @@ function renderOrder(scroll){
      ratings endpoint answers once); fetch every place's average now */
   drawResultRatings();
   drawExtraRatings();
+  drawGoogleRatings();
   scheduleRatingsFetch(order.map(sectionRatingId));
   res.classList.add("show");
   if(scroll!==false) res.scrollIntoView({behavior:"smooth", block:"nearest"});
@@ -52059,11 +52166,14 @@ function renderBrowse(){
     const brid=browseRatingId(s);
     const brec=brid ? RATINGS[brid] : null;
     const brate='<div class="brate" data-rid="'+(brid||"")+'">'+(brec ? escHtml(ratingCompact(brec)) : "")+'</div>';
+    const grec=brid ? GOOGLE_RATINGS[brid] : null;
+    const bggl='<div class="bggl" data-rid="'+(brid||"")+'">'+(grFresh(grec) ? escHtml(googleRatingCompact(grec)) : "")+'</div>';
     return '<div class="bcard"><b>'+escHtml(s.name)+'</b>'
       + (lab ? '<div class="blab">'+escHtml(lab)+'</div>' : "")
       + (s.addr ? '<div class="baddr">'+escHtml(s.addr)+'</div>' : "")
       + (meta ? '<div class="bmeta">'+escHtml(meta)+'</div>' : "")
       + brate
+      + bggl
       + (!s.local && s.openNow===true ? '<span class="bopen on">'+escHtml(t("openNow"))+'</span>' : "")
       + (!s.local && s.openNow===false ? '<span class="bopen off">'+escHtml(t("closedNow"))+'</span>' : "")
       + '<div class="brow2"><button type="button" class="mapbtn bmap" data-i="'+i+'">'+t("mapBtn")+'</button>'
@@ -52073,6 +52183,7 @@ function renderBrowse(){
   $("browseList").querySelectorAll(".bmap").forEach(b=>{ b.onclick=()=>browseOpenMap(+b.dataset.i); });
   $("browseList").querySelectorAll(".broll").forEach(b=>{ b.onclick=()=>{ const s=browseShown[+b.dataset.i]; if(s && s.key){ closeBrowse(); rollChain(s.key); } }; });
   scheduleRatingsFetch(browseShown.map(browseRatingId)); // one debounced batch for the visible cards
+  ensureGoogleRatings(); // Google ratings for this area's locals (once per area; silent no-op pre-v5.2)
 }
 function browseOpenMap(i){
   const s=browseShown[i]; if(!s) return;
