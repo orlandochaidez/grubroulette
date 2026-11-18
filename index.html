@@ -955,6 +955,112 @@ async function ensureLiveHours(){
     if(hrsFetchFor===fk) hrsFetchFor="";
   }catch(e){}
 }
+/* ---- Google hours cache (2026-11-17, Worker v5): Open now / Open late for
+   LOCALS without researched pack hours ----
+   The Worker keeps a rolling cache of Google hours (D1 table
+   google_hours_cache, rows fresh for 30 days max per Google's terms)
+   and serves it at GET /hours-cache?keys=... — one cheap D1 read, zero
+   Google cost. After a search establishes an area, the app fetches the
+   cache ONCE for that area's locals that lack researched hrs/h24.
+   Researched pack hours ALWAYS win; the cache is used only where pack
+   hours are unknown, and only while the row is fresh (<=30 days).
+   Open state is derived from the cached nextClose/nextOpen timestamps
+   (Google's semantics: whichever of the two comes first tells you the
+   current state — a close first means open until then, an open first
+   means closed until then), falling back to the fetch-time openNow
+   snapshot only while it is <30 min old. A stale or missing row is
+   unknown, never guessed. If the endpoint is missing (v4 Worker still
+   deployed) or the fetch fails, everything degrades SILENTLY to
+   today's behavior — the app push is safe BEFORE Orlando pastes v5. */
+let GOOGLE_HOURS={}; // ratingId -> {openNow, nextClose, nextOpen, fetchedAt}, in-memory session cache
+const GH_TTL_MS=30*24*3600*1000; // Google's terms: Places data cached at most 30 days
+function ghFresh(rec){ return rec && (Date.now()-(rec.fetchedAt||0)) <= GH_TTL_MS; }
+function cachedHoursFor(co){
+  if(!co || !co.local || co.h24 || co.hrs) return null; // researched hours always win
+  const rec=GOOGLE_HOURS[ratingIdFor(co)];
+  return ghFresh(rec)?rec:null;
+}
+function cachedOpenNow(co, date){
+  const h=cachedHoursFor(co); if(!h) return null;
+  const now=(date||grubNow()).getTime();
+  const nc=h.nextClose?new Date(h.nextClose).getTime():NaN;
+  const no=h.nextOpen?new Date(h.nextOpen).getTime():NaN;
+  if(isFinite(nc)&&isFinite(no)){
+    if(nc<no) return now<nc?true:null; // open period: closes at nc (next open is after that)
+    if(now<no) return false; // closed period: opens at no
+    return now<nc?true:null;
+  }
+  // only one timestamp (or none): trust the fetch-time snapshot only while it is fresh
+  if(h.fetchedAt && now-h.fetchedAt < 30*60*1000) return h.openNow===true?true:(h.openNow===false?false:null);
+  return null;
+}
+function cachedOpenLate(co, date){
+  const h=cachedHoursFor(co); if(!h || !h.nextClose) return false;
+  if(cachedOpenNow(co, date)!==true) return false; // only a proven past-midnight close counts — never guessed
+  const tz=spotTZ(co);
+  const nowD=localParts(tz, date||grubNow()), closeD=localParts(tz, new Date(h.nextClose));
+  return closeD.dayKey > nowD.dayKey; // closes on a later local calendar day = runs past midnight
+}
+function cachedHoursLine(co){
+  const on=cachedOpenNow(co); if(on==null) return null;
+  const h=cachedHoursFor(co);
+  if(on===true){
+    if(h.nextClose) return t("openNowTil", { t:fmtISOInTZ(h.nextClose, spotTZ(co)) });
+    return t("openNow");
+  }
+  if(h.nextOpen) return t("closedOpens", { t:fmtISOInTZ(h.nextOpen, spotTZ(co)) });
+  return t("closedNow");
+}
+// Researched hours first, Google cache as fallback — one helper each so the
+// filters and the status line can never disagree about a local's state.
+function localOpenNow(co){ const r=isOpenAt(co); return r!==null?r:cachedOpenNow(co); }
+function localOpenLate(co){ return isOpenLate(co) || cachedOpenLate(co); }
+// test seam: GRUB_TEST.hoursCacheTransport, when set, replaces fetch for /hours-cache calls
+function hoursCacheFetch(url){
+  const tr=(typeof GRUB_TEST!=="undefined" && GRUB_TEST.hoursCacheTransport) || null;
+  return tr ? tr(url) : fetch(url);
+}
+let ghFetchFor=""; // area guard: one cache fetch per area per session
+async function ensureGoogleHoursCache(){
+  try{
+    if(!state.area || !state.zip) return;
+    const fk=state.zip+"|"+[...areaCities()].sort().join(",");
+    if(ghFetchFor===fk) return;
+    ghFetchFor=fk;
+    // locals lacking researched hours in this area + their live-twin pids
+    const keys=[], liveToLocal={};
+    for(const k of browseLocalKeys()){
+      const co=chainObj(k); if(!co||!co.local||co.h24||co.hrs) continue;
+      const id=ratingIdFor(co); if(!id) continue;
+      keys.push(id);
+      const twin=(state.livePlaces||[]).find(p=>p&&p.pid&&normalizeBrand(p.name)===normalizeBrand(co.name)&&p.addr&&co.addr&&p.addr.split(",")[0].trim().toLowerCase()===co.addr.toLowerCase());
+      if(twin){ keys.push("live:"+twin.pid); liveToLocal["live:"+twin.pid]=id; }
+    }
+    const uniq=[...new Set(keys)].slice(0,100);
+    if(!uniq.length) return;
+    let data;
+    try{
+      const r=await hoursCacheFetch(GOOGLE_WORKER+"/hours-cache?keys="+uniq.map(encodeURIComponent).join(","));
+      if(!r.ok) return; // v4 Worker (no endpoint) / offline: silent, today's behavior
+      data=await r.json();
+    }catch(e){ return; }
+    let changed=false;
+    const rows=data||{};
+    for(const id of Object.keys(rows)){
+      const rec=rows[id]; if(!rec) continue;
+      const norm={openNow:(rec.openNow===true?true:(rec.openNow===false?false:null)), nextClose:rec.nextClose||null, nextOpen:rec.nextOpen||null, fetchedAt:(typeof rec.fetchedAt==="number"?rec.fetchedAt:0)};
+      if(id in liveToLocal){
+        // twin row: fills a local only when it has no direct local: row
+        const lid=liveToLocal[id];
+        if(!(lid in GOOGLE_HOURS) && !(lid in rows)){ GOOGLE_HOURS[lid]=norm; changed=true; }
+      } else { GOOGLE_HOURS[id]=norm; changed=true; }
+    }
+    if(changed){
+      if(state.order && state.order.length && $("result").classList.contains("show")) renderOrder(false);
+      else if(state.lastRender && $("result").classList.contains("show")) render(state.lastRender.chain, state.lastRender.combos, state.lastRender.chainKey);
+    }
+  }catch(e){}
+}
 function applyLive(zip, rec){
   state.liveKeys = rec.keys.length ? rec.keys : null;
   state.nearest = rec.nearest || null;
@@ -972,6 +1078,7 @@ function applyLive(zip, rec){
     const hh=readHrsCache(zip);
     if(hh) applyHoursData(hh);
     if(state.filters.openNow || state.filters.openLate) ensureLiveHours();
+    ensureGoogleHoursCache(); // Google-hours fallback for locals without researched hours (one D1 read, zero Google cost; silent no-op on a v4 Worker)
   }
 }
 async function lookupZip(zip){
@@ -51332,17 +51439,20 @@ function availableChains(){
     if(eligB.length) base=eligB; // no qualifying main, no Ballin' roll at that spot
   }
   if(state.filters.openNow){
-    // locals qualify on researched hours; live-matched (non-local) keys
+    // locals qualify on researched hours, else the Google-hours cache
+    // fallback (Worker v5, 30-day rows); live-matched (non-local) keys
     // qualify only when Google says that location is open right now.
     // Unknown hours drop out on both sides — if nothing qualifies at all,
     // fall back rather than dead-end the roll (house pattern).
-    const open=base.filter(k=>{ const co=chainObj(k); if(!co) return false; return co.local ? isOpenAt(co)===true : liveOpenNow(k)===true; });
+    const open=base.filter(k=>{ const co=chainObj(k); if(!co) return false; return co.local ? localOpenNow(co)===true : liveOpenNow(k)===true; });
     if(open.length) base=open;
   }
   if(state.filters.openLate){
-    // live places join Open late only with a PROVEN past-midnight close
+    // locals qualify on researched past-midnight hours, else the
+    // Google-hours cache (a proven past-midnight nextClose); live
+    // places join Open late only with a PROVEN past-midnight close
     // (currently open + nextClose on a later local day) — never guessed
-    const late=base.filter(k=>{ const co=chainObj(k); if(!co) return false; return co.local ? isOpenLate(co) : liveIsOpenLate(k); });
+    const late=base.filter(k=>{ const co=chainObj(k); if(!co) return false; return co.local ? localOpenLate(co) : liveIsOpenLate(k); });
     if(late.length) base=late; // same house pattern: narrow only when something qualifies
   }
   const cats=state.filters.cats.filter(c=>CATEGORIES[c]);
@@ -51473,9 +51583,10 @@ function locTextFor(chain, chainKey){
   return {text:"", show:false};
 }
 function hoursTextFor(chain, chainKey){
-  /* hours line: locals show researched hours; live-matched chains show
-     Google's open state for the matched location when it is known */
-  const hl = chain.local ? hoursLine(chain) : liveHoursLine(chainKey);
+  /* hours line: locals show researched hours, else the Google-hours cache
+     fallback (Worker v5); live-matched chains show Google's open state
+     for the matched location when it is known */
+  const hl = chain.local ? (hoursLine(chain) || cachedHoursLine(chain)) : liveHoursLine(chainKey);
   return hl ? {text:hl, show:true} : {text:"", show:false};
 }
 function placeForMap(chain, chainKey){
