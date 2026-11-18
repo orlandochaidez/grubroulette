@@ -411,6 +411,7 @@
   <h4 id="hSpecial">Special</h4>
   <div class="tglrow"><span><span id="lblLocals">Locals only</span><small id="subLocals">hometown spots, no chains</small></span><button class="tgl" id="tglLocals">OFF</button></div>
   <div class="tglrow"><span><span id="lblBallin">Ballin' on a Budget</span><small id="subBallin">only 120+ calories per $</small></span><button class="tgl" id="tglBallin">OFF</button></div>
+  <div class="tglrow"><span><span id="lblRipOff">Rip Me Off</span><small id="subRipOff">worst value: pricey calories</small></span><button class="tgl" id="tglRipOff">OFF</button></div>
   <div class="tglrow"><span><span id="lblUnder10">Under $10, for sure</span><small id="subUnder10">hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
   <div class="tglrow"><span><span id="lblSweet">Sweet Tooth</span><small id="subSweet">desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
   <div class="tglrow"><span><span id="lblBreakfast">Breakfast</span><small id="subBreakfast">breakfast items only</small></span><button class="tgl" id="tglBreakfast">OFF</button></div>
@@ -1246,6 +1247,8 @@ en:{
   localsOnlySub:"hometown spots, no chains",
   ballin:"Ballin' on a Budget",
   ballinSub:"only 120+ calories per $",
+  ripOff:"Rip Me Off",
+  ripOffSub:"worst value: pricey calories",
   under10:"Under $10, for sure",
   under10Sub:"hard cap, no exceptions",
   sweetTooth:"Sweet Tooth",
@@ -1362,6 +1365,8 @@ es:{
   localsOnlySub:"lugares de la zona, nada de cadenas",
   ballin:"A lo grande sin gastar",
   ballinSub:"solo más de 120 calorías por $",
+  ripOff:"Estafame",
+  ripOffSub:"lo peor por tu dinero",
   under10:"Menos de $10, seguro",
   under10Sub:"tope fijo, sin excepciones",
   sweetTooth:"Antojo dulce",
@@ -50937,7 +50942,7 @@ function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.c
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, order:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
-  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, breakfast:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
+  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, ripOff:false, under10:false, sweet:false, breakfast:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
 /* ---- crew mode (2026-11-17): feed 1–4 mouths at one place ----
    One roll picks ONE place (same pool/filters as today), then builds one
@@ -50954,6 +50959,14 @@ const price = items => items.some(i=>i.p==null) ? null : items.reduce((s,i)=>s+i
 const cals  = items => items.reduce((s,i)=>s+i.c*(i.qty||1),0);
 const BALLIN_MIN=120; // Ballin' on a Budget floor: nothing under 120 cal per $ (Orlando, 2026-10-21)
 function valOK(i){ return i.p!=null && (i.p===0 || i.c/i.p>=BALLIN_MIN); }
+/* ---- Rip Me Off (2026-11-17, Orlando): the opposite of Ballin' — the
+   WORST calories per dollar. Measured across LOCAL_SPOTS: median main is
+   67.6 cal/$, p25 is 50.8; 47% of locals have a main at/below 50 and 32%
+   can build a full 3-course rip-off combo, so RIPOFF_MAX=50 bites without
+   the house fallback firing constantly. A free (p=0) item is infinite
+   value, never a rip-off. ---- */
+const RIPOFF_MAX=50; // Rip Me Off ceiling: nothing over 50 cal per $ (Orlando, 2026-11-17)
+function ripOK(i){ return i.p!=null && i.p>0 && i.c/i.p<=RIPOFF_MAX; }
 function cat(items,c){ return items.filter(i=>i.t.includes(c)); }
 function effCap(){ let cap = state.filters.maxPrice>0 ? state.filters.maxPrice : Infinity; if(state.filters.under10) cap = Math.min(cap,10); return cap; }
 function calBounds(){ return {any:[0,Infinity], light:[0,600], regular:[600,1100], feast:[1100,Infinity]}[state.filters.cal]; }
@@ -50968,7 +50981,7 @@ function fitBudget(chainKey, items, budget){
     const sorted=[...items].sort((a,b)=>b.p-a.p);
     const victim=sorted[0];
     const vcat=victim.t.includes("main")?"main":victim.t.includes("side")?"side":victim.t.includes("drink")?"drink":"dessert";
-    const alts=pool.filter(i=>i!==victim && i.t.includes(vcat) && i.p<victim.p && !items.some(p=>p.n===i.n) && (!state.filters.ballin || valOK(i))).sort((a,b)=>b.c-a.c);
+    const alts=pool.filter(i=>i!==victim && i.t.includes(vcat) && i.p<victim.p && !items.some(p=>p.n===i.n) && (!state.filters.ballin || valOK(i)) && (!state.filters.ripOff || ripOK(i))).sort((a,b)=>b.c-a.c);
     if(alts.length){ items[items.indexOf(victim)]={...alts[0]}; continue; }
     const mainCount=items.filter(i=>i.t.includes("main")).length;
     const droppable=sorted.filter(i=>!(i.t.includes("main")&&mainCount<=1));
@@ -50981,7 +50994,7 @@ function fitBudget(chainKey, items, budget){
 
 /* ---- calorie fitting: trim or stack until inside the chosen range ---- */
 function fitCalories(chainKey, picks){
-  const _elig = a => state.filters.ballin ? a.filter(valOK) : a; // Ballin' floor applies to swaps/extras too
+  const _elig = a => state.filters.ballin ? a.filter(valOK) : state.filters.ripOff ? a.filter(ripOK) : a; // value floor/ceiling applies to swaps/extras too
   const [mn,mx]=calBounds();
   let guard=0;
   while(cals(picks)>mx && guard++<10){
@@ -51025,6 +51038,7 @@ function pickAvoiding(pool, avoid){ // random pick minus already-used names; fal
   return rand(rest.length?rest:pool);
 }
 function bestValue(pool){ const val=i=> i.p==null ? 0 : i.c/Math.max(i.p,.01); return [...pool].sort((a,b)=>val(b)-val(a))[0]; }
+function worstValue(pool){ const val=i=> i.p==null ? Infinity : i.c/Math.max(i.p,.01); return [...pool].sort((a,b)=>val(a)-val(b))[0]; } // Rip Me Off: the single worst value on the menu
 function pickDrink(chain){
   const d=cat(chain.items,"drink");
   if(!d.length) return {...WATER}; // water cup is ONLY the fallback for menus with no drinks (Orlando, 2026-10-22)
@@ -51045,6 +51059,7 @@ function refillDrink(ck, picks){ // a real drink that still fits the caps beats 
   const cap=effCap(); const pt=price(picks);
   let cands=fitPool(ck).filter(i=>i.t.includes("drink") && !picks.some(p=>p.n===i.n));
   if(state.filters.ballin) cands=cands.filter(valOK);
+  if(state.filters.ripOff) cands=cands.filter(ripOK);
   cands=cands.filter(i=> i.c<=head && (pt===null || cap===Infinity || i.p==null || pt+i.p<=cap));
   return cands.length ? {...rand(cands)} : {...WATER};
 }
@@ -51069,6 +51084,18 @@ function buildMeal(ck, chain, opts){
     if(opts && opts.preferLarge){ const lg=sp.filter(isLargeFormat); if(lg.length) sp=lg; }
     if(sp.length) side={...bestValue(sp)};
     const dp=cat(items,"drink").filter(valOK); drink = dp.length ? {...bestValue(dp)} : {...WATER};
+  } else if(F.ripOff){
+    // Rip Me Off mirrors Ballin' exactly, upside down: every course is
+    // the WORST value on the menu (lowest cal/$), and the drink falls
+    // back to the water cup when no drink on the menu is pricey enough.
+    let bm=cat(items,"main").filter(ripOK);
+    if(opts && opts.avoidMains){ const rest=bm.filter(m=>!opts.avoidMains.has(m.n)); if(rest.length) bm=rest; }
+    if(opts && opts.preferLarge){ const lg=bm.filter(isLargeFormat); if(lg.length) bm=lg; }
+    main={...worstValue(bm.length?bm:cat(items,"main"))}; // fallback only if nothing anywhere qualifies
+    let sp=cat(items,"side").filter(ripOK);
+    if(opts && opts.preferLarge){ const lg=sp.filter(isLargeFormat); if(lg.length) sp=lg; }
+    if(sp.length) side={...worstValue(sp)};
+    const dp=cat(items,"drink").filter(ripOK); drink = dp.length ? {...worstValue(dp)} : {...WATER};
   } else {
     let mains=cat(items,"main");
     if(opts && opts.preferLarge){ const lg=mains.filter(isLargeFormat); if(lg.length) mains=lg; }
@@ -51129,6 +51156,15 @@ function buildBreakfast(ck, chain, opts){
     if(opts && opts.preferLarge){ const lg=sp.filter(isLargeFormat); if(lg.length) sp=lg; }
     if(sp.length) side={...bestValue(sp)};
     const dp=cat(items,"drink").filter(valOK); drink = dp.length ? {...bestValue(dp)} : {...WATER};
+  } else if(F.ripOff){
+    let bm=mains.filter(ripOK);
+    if(opts && opts.avoidMains){ const rest=bm.filter(m=>!opts.avoidMains.has(m.n)); if(rest.length) bm=rest; }
+    if(opts && opts.preferLarge){ const lg=bm.filter(isLargeFormat); if(lg.length) bm=lg; }
+    main={...worstValue(bm.length?bm:mains)};
+    let sp=cat(items,"side").filter(ripOK);
+    if(opts && opts.preferLarge){ const lg=sp.filter(isLargeFormat); if(lg.length) sp=lg; }
+    if(sp.length) side={...worstValue(sp)};
+    const dp=cat(items,"drink").filter(ripOK); drink = dp.length ? {...worstValue(dp)} : {...WATER};
   } else {
     let mns=mains;
     if(opts && opts.preferLarge){ const lg=mns.filter(isLargeFormat); if(lg.length) mns=lg; }
@@ -51535,13 +51571,17 @@ function availableChains(){
     const withBreakfast=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(i=>i.t.includes("breakfast")); });
     if(withBreakfast.length) base=withBreakfast;
   }
-  if(state.filters.under10 || state.filters.maxPrice || state.filters.ballin){
+  if(state.filters.under10 || state.filters.maxPrice || state.filters.ballin || state.filters.ripOff){
     const priced=base.filter(k=>{ const co=chainObj(k); return co && !co.items.some(i=>i.p==null); });
     if(priced.length) base=priced; // can't promise a budget for a menu with unpublished prices
   }
   if(state.filters.ballin){
     const eligB=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(valOK); });
     if(eligB.length) base=eligB; // no qualifying main, no Ballin' roll at that spot
+  }
+  if(state.filters.ripOff){
+    const eligR=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(ripOK); });
+    if(eligR.length) base=eligR; // no qualifying main, no Rip Me Off roll at that spot
   }
   if(state.filters.openNow){
     // locals qualify on researched hours, else the Google-hours cache
@@ -51874,9 +51914,19 @@ $("catRow").querySelectorAll(".chip").forEach(ch=>{
     if(i>=0) state.filters.cats.splice(i,1); else state.filters.cats.push(v); updateSummary(); };
 });
 function wireToggle(id, key){
-  $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); updateSummary(); if((key==="openNow"||key==="openLate") && state.filters[key]) ensureLiveHours(); };
+  $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); if(state.filters[key]) clearOpposite(key); updateSummary(); if((key==="openNow"||key==="openLate") && state.filters[key]) ensureLiveHours(); };
 }
-wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglBreakfast","breakfast"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
+// Ballin' and Rip Me Off are logical opposites (>=120 and <=50 cal/$ can
+// never both hold) — turning one on turns the other off, in both
+// directions. The state change is what matters; the other button's UI
+// follows it so the drawer can never show both ON.
+const VALUE_PAIR={ballin:["ripOff","tglRipOff"], ripOff:["ballin","tglBallin"]};
+function clearOpposite(key){
+  const pair=VALUE_PAIR[key]; if(!pair) return;
+  const other=pair[0];
+  if(state.filters[other]){ state.filters[other]=false; const ob=$(pair[1]); if(ob){ ob.classList.toggle("on",false); ob.textContent=t("off"); } }
+}
+wireToggle("tglBallin","ballin"); wireToggle("tglRipOff","ripOff"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglBreakfast","breakfast"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
 function updateSummary(){
   const F=state.filters, parts=[];
   if(F.localsOnly) parts.push(t("localsOnly"));
@@ -51885,6 +51935,7 @@ function updateSummary(){
   if(F.cal!=="any") parts.push(t({light:"summaryCalLight", regular:"summaryCalRegular", feast:"summaryCalFeast"}[F.cal]));
   F.cats.forEach(c=>parts.push(catLabel(c)));
   if(F.ballin) parts.push(t("ballin"));
+  if(F.ripOff) parts.push(t("ripOff"));
   if(F.openNow) parts.push(t("openNow"));
   if(F.openLate) parts.push(t("openLate"));
   if(F.sweet) parts.push(t("sweetTooth"));
@@ -52268,6 +52319,7 @@ function applyLang(){
   S("hMaxPrice", t("maxPrice")); S("hCalories", t("caloriesTitle")); S("hCategories", t("categoriesTitle")); S("hSpecial", t("specialTitle"));
   S("lblLocals", t("localsOnly")); S("subLocals", t("localsOnlySub"));
   S("lblBallin", t("ballin")); S("subBallin", t("ballinSub"));
+  S("lblRipOff", t("ripOff")); S("subRipOff", t("ripOffSub"));
   S("lblUnder10", t("under10")); S("subUnder10", t("under10Sub"));
   S("lblSweet", t("sweetTooth")); S("subSweet", t("sweetToothSub"));
   S("lblBreakfast", t("breakfast")); S("subBreakfast", t("breakfastSub"));
@@ -52275,7 +52327,7 @@ function applyLang(){
   S("lblOpenNow", t("openNow")); S("subOpenNow", t("openNowSub"));
   S("lblOpenLate", t("openLate")); S("subOpenLate", t("openLateSub"));
   S("drawerDone", t("done")); S("drawerNote", t("drawerNote"));
-  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglUnder10","under10"],["tglSweet","sweet"],["tglBreakfast","breakfast"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
+  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglRipOff","ripOff"],["tglUnder10","under10"],["tglSweet","sweet"],["tglBreakfast","breakfast"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
   const anyChip=$("priceRow").querySelector('.chip[data-v="0"]'); if(anyChip) anyChip.textContent=t("anyChip");
   const calAny=$("calRow").querySelector('.chip[data-v="any"]'); if(calAny) calAny.textContent=t("anyChip");
   const calLight=$("calRow").querySelector('.chip[data-v="light"]'); if(calLight) calLight.textContent=t("calLight");
