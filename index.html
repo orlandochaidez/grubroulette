@@ -335,6 +335,7 @@
       <div class="chainbar" id="rChain"></div>
       <div class="locbar" id="rLoc"></div>
       <div class="locbar" id="rHours"></div>
+      <div class="locbar" id="rSitdown"></div>
       <div class="locbar" id="rRate"></div>
       <div class="locbar" id="rGoogle"></div>
       <div id="rVote"></div>
@@ -415,6 +416,7 @@
   <div class="tglrow"><span><span id="lblUnder10">Under $10, for sure</span><small id="subUnder10">hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
   <div class="tglrow"><span><span id="lblSweet">Sweet Tooth</span><small id="subSweet">desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
   <div class="tglrow"><span><span id="lblBreakfast">Breakfast</span><small id="subBreakfast">breakfast items only</small></span><button class="tgl" id="tglBreakfast">OFF</button></div>
+  <div class="tglrow"><span><span id="lblSitdown">Sit-down too</span><small id="subSitdown">include sit-down restaurants</small></span><button class="tgl" id="tglSitdown">OFF</button></div>
   <div class="tglrow"><span><span id="lblCatering">Catering</span><small id="subCatering">feed a crew: bulk order</small></span><button class="tgl" id="tglCatering">OFF</button></div>
   <div class="tglrow"><span><span id="lblOpenNow">Open now</span><small id="subOpenNow">only places open right now</small></span><button class="tgl" id="tglOpenNow">OFF</button></div>
   <div class="tglrow"><span><span id="lblOpenLate">Open late</span><small id="subOpenLate">open past midnight (or 24 hours)</small></span><button class="tgl" id="tglOpenLate">OFF</button></div>
@@ -1255,6 +1257,9 @@ en:{
   sweetToothSub:"desserts & sweet drinks only",
   breakfast:"Breakfast",
   breakfastSub:"breakfast items only",
+  sitdown:"Sit-down too",
+  sitdownSub:"include sit-down restaurants",
+  sitdownTag:"Sit-down",
   catering:"Catering",
   cateringSub:"feed a crew: bulk order",
   openNow:"Open now",
@@ -1373,6 +1378,9 @@ es:{
   sweetToothSub:"solo postres y bebidas dulces",
   breakfast:"Desayuno",
   breakfastSub:"solo desayuno",
+  sitdown:"También sentados",
+  sitdownSub:"incluir restaurantes",
+  sitdownTag:"Sentados",
   catering:"Banquetes",
   cateringSub:"para todo el equipo: pedido grande",
   openNow:"Abierto ahora",
@@ -51855,7 +51863,7 @@ function buildLocalChains(spots){
     if(!s.items || !s.items.length) return; // real menus only — no items, no rolls
     const tpl=GENERIC_MENUS[s.cat];
     const key="local_"+idx;
-    chains[key]={ name:s.name, cat:s.cat||"", color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", st:s.st||"", lat:(s.lat!=null?s.lat:null), lon:(s.lon!=null?s.lon:null), zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items, hrs:s.hrs||null, h24:!!s.h24, closedDays:s.closedDays||null };
+    chains[key]={ name:s.name, cat:s.cat||"", color:s.color||"#8a5a2b", local:true, addr:s.addr||"", city:s.city||"", st:s.st||"", lat:(s.lat!=null?s.lat:null), lon:(s.lon!=null?s.lon:null), zips:s.zips||[], cats:tpl?tpl.cats:[], items:s.items, hrs:s.hrs||null, h24:!!s.h24, closedDays:s.closedDays||null, tags:s.tags||[] };
     (s.zips||[]).forEach(z=>{ (byZip[z]=byZip[z]||[]).push(key); });
     if(s.city) (byCity[s.city.toLowerCase()]=byCity[s.city.toLowerCase()]||[]).push(key);
   });
@@ -51865,7 +51873,7 @@ function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.c
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, order:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
-  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, ripOff:false, under10:false, sweet:false, breakfast:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
+  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, ripOff:false, under10:false, sweet:false, breakfast:false, sitdown:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
 /* ---- crew mode (2026-11-17): feed 1–4 mouths at one place ----
    One roll picks ONE place (same pool/filters as today), then builds one
@@ -52494,6 +52502,15 @@ function availableChains(){
     const withBreakfast=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(i=>i.t.includes("breakfast")); });
     if(withBreakfast.length) base=withBreakfast;
   }
+  if(!state.filters.sitdown){
+    // Sit-down spots (table service, entry tag "sit-down") stay out of
+    // the roll pool unless the Sit-down too toggle is on. Chains are
+    // never sit-down; the co.local check makes that explicit. House
+    // pattern: if the whole pool is sit-down, fall back rather than
+    // dead-end the roll.
+    const noSit=base.filter(k=>{ const co=chainObj(k); return !(co && co.local && isSitdown(co)); });
+    if(noSit.length) base=noSit;
+  }
   if(state.filters.under10 || state.filters.maxPrice || state.filters.ballin || state.filters.ripOff){
     const priced=base.filter(k=>{ const co=chainObj(k); return co && !co.items.some(i=>i.p==null); });
     if(priced.length) base=priced; // can't promise a budget for a menu with unpublished prices
@@ -52644,6 +52661,7 @@ function openMapFor(si){
 }
 
 /* Per-place header facts, shared by the first section and extra sections. */
+function isSitdown(chain){ return !!(chain && chain.local && (chain.tags||[]).includes("sit-down")); }
 function locTextFor(chain, chainKey){
   const loc = state.nearest && chainKey ? state.nearest[chainKey] : null;
   if(chain.local && chain.addr) return {text:t("findIt") + chain.addr, show:true};
@@ -52677,6 +52695,7 @@ function renderFirstSection(sec){
   $("rLoc").textContent=loc.text; $("rLoc").classList.toggle("show", loc.show);
   const hl=hoursTextFor(chain, chainKey);
   $("rHours").textContent=hl.text; $("rHours").classList.toggle("show", hl.show);
+  $("rSitdown").textContent=isSitdown(chain)?t("sitdownTag"):""; $("rSitdown").classList.toggle("show", isSitdown(chain));
   state.lastPlace=placeForMap(chain, chainKey);
   $("rMapRow").classList.toggle("show", !!state.lastPlace);
   if(combos.length===1){
@@ -52708,6 +52727,7 @@ function sectionHtml(sec, idx){
     +`<div class="chainbar" style="background:${escHtml(chain.color||"#333")}">${escHtml(chain.name)}${chain.local?escHtml(t("localPick")):""}</div>`
     +`<div class="locbar${loc.show?" show":""}">${escHtml(loc.text)}</div>`
     +`<div class="locbar${hl.show?" show":""}">${escHtml(hl.text)}</div>`
+    +`<div class="locbar${isSitdown(chain)?" show":""}">${isSitdown(chain)?escHtml(t("sitdownTag")):""}</div>`
     +`<div class="locbar srate"></div>`
     +`<div class="locbar sgrate"></div>`
     +`<div class="svote"></div>`
@@ -52849,7 +52869,7 @@ function clearOpposite(key){
   const other=pair[0];
   if(state.filters[other]){ state.filters[other]=false; const ob=$(pair[1]); if(ob){ ob.classList.toggle("on",false); ob.textContent=t("off"); } }
 }
-wireToggle("tglBallin","ballin"); wireToggle("tglRipOff","ripOff"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglBreakfast","breakfast"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
+wireToggle("tglBallin","ballin"); wireToggle("tglRipOff","ripOff"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglBreakfast","breakfast"); wireToggle("tglSitdown","sitdown"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
 function updateSummary(){
   const F=state.filters, parts=[];
   if(F.localsOnly) parts.push(t("localsOnly"));
@@ -52863,6 +52883,7 @@ function updateSummary(){
   if(F.openLate) parts.push(t("openLate"));
   if(F.sweet) parts.push(t("sweetTooth"));
   if(F.breakfast) parts.push(t("breakfast"));
+  if(F.sitdown) parts.push(t("sitdown"));
   if(F.catering) parts.push(t("catering"));
   $("filterSummary").textContent = parts.length ? t("filtersOn")+parts.join(" · ") : "";
 }
@@ -53070,7 +53091,7 @@ function browseSet(){
   for(const k of browseLocalKeys()){
     const co=chainObj(k); if(!co) continue;
     localNames.add(normalizeBrand(co.name));
-    out.push({key:k, name:co.name, cat:co.cat||"", addr:co.addr||"", city:co.city||"", st:co.st||"", zips:co.zips||[], items:co.items||[], local:true, sweets:isSweetsSpot(co), lat:(co.lat!=null?co.lat:null), lon:(co.lon!=null?co.lon:null), typeLabel:""});
+    out.push({key:k, name:co.name, cat:co.cat||"", addr:co.addr||"", city:co.city||"", st:co.st||"", zips:co.zips||[], items:co.items||[], local:true, sweets:isSweetsSpot(co), sitdown:!!(co.tags||[]).includes("sit-down"), lat:(co.lat!=null?co.lat:null), lon:(co.lon!=null?co.lon:null), typeLabel:""});
   }
   for(const p of (state.livePlaces||[])){
     if(!p || !p.name) continue;
@@ -53144,6 +53165,7 @@ function renderBrowse(){
     const bggl='<div class="bggl" data-rid="'+(brid||"")+'">'+(grFresh(grec) ? escHtml(googleRatingCompact(grec)) : "")+'</div>';
     return '<div class="bcard"><b>'+escHtml(s.name)+'</b>'
       + (lab ? '<div class="blab">'+escHtml(lab)+'</div>' : "")
+      + (s.sitdown ? '<div class="blab">'+escHtml(t("sitdownTag"))+'</div>' : "")
       + (s.addr ? '<div class="baddr">'+escHtml(s.addr)+'</div>' : "")
       + (meta ? '<div class="bmeta">'+escHtml(meta)+'</div>' : "")
       + brate
@@ -53246,11 +53268,12 @@ function applyLang(){
   S("lblUnder10", t("under10")); S("subUnder10", t("under10Sub"));
   S("lblSweet", t("sweetTooth")); S("subSweet", t("sweetToothSub"));
   S("lblBreakfast", t("breakfast")); S("subBreakfast", t("breakfastSub"));
+  S("lblSitdown", t("sitdown")); S("subSitdown", t("sitdownSub"));
   S("lblCatering", t("catering")); S("subCatering", t("cateringSub"));
   S("lblOpenNow", t("openNow")); S("subOpenNow", t("openNowSub"));
   S("lblOpenLate", t("openLate")); S("subOpenLate", t("openLateSub"));
   S("drawerDone", t("done")); S("drawerNote", t("drawerNote"));
-  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglRipOff","ripOff"],["tglUnder10","under10"],["tglSweet","sweet"],["tglBreakfast","breakfast"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
+  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglRipOff","ripOff"],["tglUnder10","under10"],["tglSweet","sweet"],["tglBreakfast","breakfast"],["tglSitdown","sitdown"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
   const anyChip=$("priceRow").querySelector('.chip[data-v="0"]'); if(anyChip) anyChip.textContent=t("anyChip");
   const calAny=$("calRow").querySelector('.chip[data-v="any"]'); if(calAny) calAny.textContent=t("anyChip");
   const calLight=$("calRow").querySelector('.chip[data-v="light"]'); if(calLight) calLight.textContent=t("calLight");
