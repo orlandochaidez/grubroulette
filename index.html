@@ -407,6 +407,7 @@
   <div class="tglrow"><span><span id="lblBallin">Ballin' on a Budget</span><small id="subBallin">only 120+ calories per $</small></span><button class="tgl" id="tglBallin">OFF</button></div>
   <div class="tglrow"><span><span id="lblUnder10">Under $10, for sure</span><small id="subUnder10">hard cap, no exceptions</small></span><button class="tgl" id="tglUnder10">OFF</button></div>
   <div class="tglrow"><span><span id="lblSweet">Sweet Tooth</span><small id="subSweet">desserts &amp; sweet drinks only</small></span><button class="tgl" id="tglSweet">OFF</button></div>
+  <div class="tglrow"><span><span id="lblBreakfast">Breakfast</span><small id="subBreakfast">breakfast items only</small></span><button class="tgl" id="tglBreakfast">OFF</button></div>
   <div class="tglrow"><span><span id="lblCatering">Catering</span><small id="subCatering">feed a crew: bulk order</small></span><button class="tgl" id="tglCatering">OFF</button></div>
   <div class="tglrow"><span><span id="lblOpenNow">Open now</span><small id="subOpenNow">only places open right now</small></span><button class="tgl" id="tglOpenNow">OFF</button></div>
   <div class="tglrow"><span><span id="lblOpenLate">Open late</span><small id="subOpenLate">open past midnight (or 24 hours)</small></span><button class="tgl" id="tglOpenLate">OFF</button></div>
@@ -1135,6 +1136,8 @@ en:{
   under10Sub:"hard cap, no exceptions",
   sweetTooth:"Sweet Tooth",
   sweetToothSub:"desserts & sweet drinks only",
+  breakfast:"Breakfast",
+  breakfastSub:"breakfast items only",
   catering:"Catering",
   cateringSub:"feed a crew: bulk order",
   openNow:"Open now",
@@ -1249,6 +1252,8 @@ es:{
   under10Sub:"tope fijo, sin excepciones",
   sweetTooth:"Antojo dulce",
   sweetToothSub:"solo postres y bebidas dulces",
+  breakfast:"Desayuno",
+  breakfastSub:"solo desayuno",
   catering:"Banquetes",
   cateringSub:"para todo el equipo: pedido grande",
   openNow:"Abierto ahora",
@@ -50818,7 +50823,7 @@ function setLocalSpots(spots){ const r=buildLocalChains(spots); LOCAL_CHAINS=r.c
 setLocalSpots(LOCAL_SPOTS);
 function chainObj(k){ return CHAINS[k] || LOCAL_CHAINS[k]; }
 const state = { zip:"", liveKeys:null, nearest:null, lastKey:null, lang:"en", lastPlace:null, lastRender:null, order:null, area:null, livePlaces:[], searchLat:null, searchLon:null,
-  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
+  filters:{ maxPrice:0, cal:"any", cats:[], ballin:false, under10:false, sweet:false, breakfast:false, catering:false, localsOnly:false, openNow:false, openLate:false } };
 
 /* ---- crew mode (2026-11-17): feed 1–4 mouths at one place ----
    One roll picks ONE place (same pool/filters as today), then builds one
@@ -50845,7 +50850,7 @@ function fitBudget(chainKey, items, budget){
   items=[...items];
   let guard=0;
   while(price(items)>budget && guard++<12){
-    const pool=chainObj(chainKey).items;
+    const pool=fitPool(chainKey);
     const sorted=[...items].sort((a,b)=>b.p-a.p);
     const victim=sorted[0];
     const vcat=victim.t.includes("main")?"main":victim.t.includes("side")?"side":victim.t.includes("drink")?"drink":"dessert";
@@ -50867,13 +50872,13 @@ function fitCalories(chainKey, picks){
   let guard=0;
   while(cals(picks)>mx && guard++<10){
     const drink=picks.find(i=>i.t.includes("drink")&&i.n!=="Water cup");
-    if(drink){ const lighter=_elig(chainObj(chainKey).items.filter(i=>i.t.includes("drink"))).sort((a,b)=>a.c-b.c)[0];
+    if(drink){ const lighter=_elig(fitPool(chainKey).filter(i=>i.t.includes("drink"))).sort((a,b)=>a.c-b.c)[0];
       if(lighter && lighter.c<drink.c){ picks[picks.indexOf(drink)]={...lighter}; continue; } }
     const extra=picks.filter(i=>!i.t.includes("main")&&!i.t.includes("drink")&&i.n!=="Water cup").sort((a,b)=>b.c-a.c)[0];
     if(extra){ picks.splice(picks.indexOf(extra),1); continue; }
     const main=picks.find(i=>i.t.includes("main"));
     if(main){
-      const lighter=_elig(chainObj(chainKey).items.filter(i=>i.t.includes("main"))).sort((a,b)=>a.c-b.c)[0];
+      const lighter=_elig(fitPool(chainKey).filter(i=>i.t.includes("main"))).sort((a,b)=>a.c-b.c)[0];
       if(lighter && lighter.n!==main.n){ picks[picks.indexOf(main)]={...lighter}; continue; }
     }
     if(drink){ picks.splice(picks.indexOf(drink),1); continue; } // last resort: the drink goes (exit refill pours what fits, else water)
@@ -50881,8 +50886,8 @@ function fitCalories(chainKey, picks){
   }
   guard=0;
   while(cals(picks)<mn && guard++<10){
-    let extra=_elig(chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert")))).sort((a,b)=>b.c-a.c)[0];
-    if(!extra) extra=_elig(chainObj(chainKey).items.filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main"))).sort((a,b)=>b.c-a.c)[0];
+    let extra=_elig(fitPool(chainKey).filter(i=>!picks.some(p=>p.n===i.n)&&(i.t.includes("side")||i.t.includes("dessert")))).sort((a,b)=>b.c-a.c)[0];
+    if(!extra) extra=_elig(fitPool(chainKey).filter(i=>!picks.some(p=>p.n===i.n)&&i.t.includes("main"))).sort((a,b)=>b.c-a.c)[0];
     if(!extra) break; const _pt=price(picks); if(_pt!==null && extra.p!=null && _pt+extra.p>effCap()) break;
     picks.push({...extra});
   }
@@ -50911,11 +50916,20 @@ function pickDrink(chain){
   if(!d.length) return {...WATER}; // water cup is ONLY the fallback for menus with no drinks (Orlando, 2026-10-22)
   return {...rand(d)};
 }
+/* ---- fitter pool: swaps/refills may only draw from the active mode's
+   items — in Breakfast mode a budget/calorie swap must land on another
+   breakfast item, never a regular-menu item. Sweet mode and normal rolls
+   draw from the full menu, exactly as before. ---- */
+function fitPool(chainKey){
+  const items=chainObj(chainKey).items;
+  if(state.filters.breakfast) return items.filter(i=>i.t.includes("breakfast"));
+  return items;
+}
 function refillDrink(ck, picks){ // a real drink that still fits the caps beats the water cup
   const chain=chainObj(ck); if(!chain) return {...WATER};
   const mx=calBounds()[1], head=mx-cals(picks);
   const cap=effCap(); const pt=price(picks);
-  let cands=chain.items.filter(i=>i.t.includes("drink") && !picks.some(p=>p.n===i.n));
+  let cands=fitPool(ck).filter(i=>i.t.includes("drink") && !picks.some(p=>p.n===i.n));
   if(state.filters.ballin) cands=cands.filter(valOK);
   cands=cands.filter(i=> i.c<=head && (pt===null || cap===Infinity || i.p==null || pt+i.p<=cap));
   return cands.length ? {...rand(cands)} : {...WATER};
@@ -50924,6 +50938,7 @@ function buildMeal(ck, chain, opts){
   const F=state.filters;
   if(!cat(chain.items,"main").length) return buildSweet(ck, chain); // sweets spot: no mains on the menu
   if(F.catering) return buildCatering(ck, chain);
+  if(F.breakfast && breakfastPool(chain).length) return buildBreakfast(ck, chain, opts);
   if(F.sweet || F.cats.includes("sweets")) return buildSweet(ck, chain);
   const items=chain.items;
   let main, side=null, drink;
@@ -50964,10 +50979,64 @@ function buildSweet(ck, chain){
   if(!picks.some(i=>i.t.includes("drink"))) picks.push(refillDrink(ck,picks)); // sweet runs get a drink too — a real one when the menu has any
   return {items:picks};
 }
+function breakfastPool(chain){
+  return chain.items.filter(i=>i.t.includes("breakfast"));
+}
+function buildBreakfast(ck, chain, opts){
+  // Breakfast mode mirrors buildMeal, but every pick comes from the
+  // breakfast-tagged items only. Same feasibility shape as a normal
+  // combo: a main is required; a side is a bonus; a drink always ends
+  // the combo, with the water cup only when the menu has no breakfast
+  // drink. Budget/calorie fitting draws from breakfast items only
+  // (fitPool), so a swap can never smuggle in a regular-menu item.
+  const F=state.filters;
+  const items=breakfastPool(chain);
+  let mains=cat(items,"main");
+  if(!mains.length){
+    // No breakfast main — reachable only via a forced roll (deals
+    // "Roll this" / Browse "Roll this spot" bypass the pool gate, which
+    // keeps these spots out of normal breakfast rolls): serve the
+    // breakfast items that exist, like a sweets spot serves desserts.
+    // A menu with no breakfast items at all falls back to a normal
+    // combo rather than an empty card (buildMeal's own guard keeps this
+    // from re-entering breakfast mode).
+    if(!items.length) return buildMeal(ck, chain, opts);
+    let picks=shuffle(items).slice(0,2).map(i=>({...i}));
+    if(!picks.some(i=>i.t.includes("drink"))) picks.push(refillDrink(ck,picks));
+    return {items:picks};
+  }
+  let main, side=null, drink;
+  if(F.ballin){
+    let bm=mains.filter(valOK);
+    if(opts && opts.avoidMains){ const rest=bm.filter(m=>!opts.avoidMains.has(m.n)); if(rest.length) bm=rest; }
+    if(opts && opts.preferLarge){ const lg=bm.filter(isLargeFormat); if(lg.length) bm=lg; }
+    main={...bestValue(bm.length?bm:mains)};
+    let sp=cat(items,"side").filter(valOK);
+    if(opts && opts.preferLarge){ const lg=sp.filter(isLargeFormat); if(lg.length) sp=lg; }
+    if(sp.length) side={...bestValue(sp)};
+    const dp=cat(items,"drink").filter(valOK); drink = dp.length ? {...bestValue(dp)} : {...WATER};
+  } else {
+    let mns=mains;
+    if(opts && opts.preferLarge){ const lg=mns.filter(isLargeFormat); if(lg.length) mns=lg; }
+    main={...pickAvoiding(mns, opts && opts.avoidMains)};
+    const sp=cat(items,"side"); if(sp.length && Math.random()<0.85){ let sides=sp; if(opts && opts.preferLarge){ const lg=sides.filter(isLargeFormat); if(lg.length) sides=lg; } side={...rand(sides)}; }
+    const dd=cat(items,"drink"); drink = dd.length ? {...rand(dd)} : {...WATER};
+  }
+  let picks=[main]; if(side) picks.push(side); picks.push(drink);
+  const cap=effCap(); if(cap!==Infinity) picks=fitBudget(ck,picks,cap);
+  picks=fitCalories(ck,picks);
+  if(!picks.some(i=>i.t.includes("drink"))) picks.push(refillDrink(ck,picks));
+  return {items:picks};
+}
 function buildCatering(ck, chain){
-  const mains=shuffle(cat(chain.items,"main")).slice(0,2);
-  const sides=shuffle(cat(chain.items,"side")).slice(0,2);
-  const drinks=cat(chain.items,"drink");
+  // Breakfast + catering: the bulk bundle draws from breakfast items
+  // where the menu has them, per category, and falls back to the regular
+  // menu for categories with no breakfast items.
+  const bf=state.filters.breakfast ? breakfastPool(chain) : [];
+  const from=(prim)=>{ const b=bf.filter(i=>i.t.includes(prim)); return b.length?b:cat(chain.items,prim); };
+  const mains=shuffle(from("main")).slice(0,2);
+  const sides=shuffle(from("side")).slice(0,2);
+  const drinks=from("drink");
   let picks=[];
   mains.forEach(m=>picks.push({...m, qty:4}));
   sides.forEach(s=>picks.push({...s, qty:2}));
@@ -51245,6 +51314,14 @@ function availableChains(){
   if(state.filters.sweet || state.filters.cats.includes("sweets")){
     const withSweet=base.filter(k=>{ const co=chainObj(k); return co && sweetPool(co).length; });
     if(withSweet.length) base=withSweet;
+  }
+  if(state.filters.breakfast){
+    // A place qualifies if it can build a full breakfast combo: a
+    // breakfast-tagged main is the required part (a side is a bonus, the
+    // drink falls back to a water cup). House pattern: if nothing
+    // qualifies at all, fall back rather than dead-end the roll.
+    const withBreakfast=base.filter(k=>{ const co=chainObj(k); return co && cat(co.items,"main").some(i=>i.t.includes("breakfast")); });
+    if(withBreakfast.length) base=withBreakfast;
   }
   if(state.filters.under10 || state.filters.maxPrice || state.filters.ballin){
     const priced=base.filter(k=>{ const co=chainObj(k); return co && !co.items.some(i=>i.p==null); });
@@ -51581,7 +51658,7 @@ $("catRow").querySelectorAll(".chip").forEach(ch=>{
 function wireToggle(id, key){
   $(id).onclick=()=>{ state.filters[key]=!state.filters[key]; $(id).classList.toggle("on",state.filters[key]); $(id).textContent=state.filters[key]?t("on"):t("off"); updateSummary(); if((key==="openNow"||key==="openLate") && state.filters[key]) ensureLiveHours(); };
 }
-wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
+wireToggle("tglBallin","ballin"); wireToggle("tglUnder10","under10"); wireToggle("tglSweet","sweet"); wireToggle("tglBreakfast","breakfast"); wireToggle("tglCatering","catering"); wireToggle("tglLocals","localsOnly"); wireToggle("tglOpenNow","openNow"); wireToggle("tglOpenLate","openLate");
 function updateSummary(){
   const F=state.filters, parts=[];
   if(F.localsOnly) parts.push(t("localsOnly"));
@@ -51593,6 +51670,7 @@ function updateSummary(){
   if(F.openNow) parts.push(t("openNow"));
   if(F.openLate) parts.push(t("openLate"));
   if(F.sweet) parts.push(t("sweetTooth"));
+  if(F.breakfast) parts.push(t("breakfast"));
   if(F.catering) parts.push(t("catering"));
   $("filterSummary").textContent = parts.length ? t("filtersOn")+parts.join(" · ") : "";
 }
@@ -51970,11 +52048,12 @@ function applyLang(){
   S("lblBallin", t("ballin")); S("subBallin", t("ballinSub"));
   S("lblUnder10", t("under10")); S("subUnder10", t("under10Sub"));
   S("lblSweet", t("sweetTooth")); S("subSweet", t("sweetToothSub"));
+  S("lblBreakfast", t("breakfast")); S("subBreakfast", t("breakfastSub"));
   S("lblCatering", t("catering")); S("subCatering", t("cateringSub"));
   S("lblOpenNow", t("openNow")); S("subOpenNow", t("openNowSub"));
   S("lblOpenLate", t("openLate")); S("subOpenLate", t("openLateSub"));
   S("drawerDone", t("done")); S("drawerNote", t("drawerNote"));
-  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglUnder10","under10"],["tglSweet","sweet"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
+  [["tglLocals","localsOnly"],["tglBallin","ballin"],["tglUnder10","under10"],["tglSweet","sweet"],["tglBreakfast","breakfast"],["tglCatering","catering"],["tglOpenNow","openNow"],["tglOpenLate","openLate"]].forEach(([id, key])=>{ $(id).textContent = state.filters[key] ? t("on") : t("off"); });
   const anyChip=$("priceRow").querySelector('.chip[data-v="0"]'); if(anyChip) anyChip.textContent=t("anyChip");
   const calAny=$("calRow").querySelector('.chip[data-v="any"]'); if(calAny) calAny.textContent=t("anyChip");
   const calLight=$("calRow").querySelector('.chip[data-v="light"]'); if(calLight) calLight.textContent=t("calLight");
